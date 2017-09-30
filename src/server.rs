@@ -3,8 +3,9 @@ use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::collections::HashMap;
 use std::net::{TcpListener, TcpStream};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::mpsc;
 use std::thread;
+use std::u64;
 use rand::random;
 use game::*;
 
@@ -13,6 +14,7 @@ pub struct Server {
     listener: TcpListener,
     channels: HashMap<u16, mpsc::Sender<AnswerAction>>,
     players: HashMap<u64, Player>,
+    tables: Vec<Table>,
 }
 
 pub struct Client {
@@ -26,12 +28,14 @@ pub struct Client {
 pub enum SendAction {
     AnswerChannel(u16, mpsc::Sender<AnswerAction>),
     AddPlayer(u64, String),
-    GetPlayers(u16),
-    Nothing,
+    AddTable(String),
+    ListTables(u16),
+    GetPlayer(u16, u64),
 }
 
 pub enum AnswerAction {
-
+    Player(Option<Player>),
+    TableList(Vec<Table>),
 }
 
 impl Server {
@@ -40,6 +44,7 @@ impl Server {
             listener: TcpListener::bind(address)?,
             channels: HashMap::new(),
             players: HashMap::new(),
+            tables: Vec::new(),
         })
     }
 
@@ -64,10 +69,29 @@ impl Server {
                 }
                 SendAction::AddPlayer(hash, name) => {
                     self.players.insert(hash, Player::new(name));
-                    println!("{} inserted", hash);
                 }
-                SendAction::GetPlayers(_) => {}
-                SendAction::Nothing => {}
+                SendAction::AddTable(name) => {
+                    self.tables.push(Table::new(name));
+                }
+                SendAction::ListTables(id) => {
+                    let channel = self.channels.get(&id).unwrap();
+                    channel
+                        .send(AnswerAction::TableList(self.tables.clone()))
+                        .unwrap();
+                }
+                SendAction::GetPlayer(id, hash) => {
+                    let channel = self.channels.get(&id).unwrap();
+                    match self.players.get(&hash) {
+                        Some(player) => {
+                            channel
+                                .send(AnswerAction::Player(Some(player.clone())))
+                                .unwrap();
+                        }
+                        None => {
+                            channel.send(AnswerAction::Player(None)).unwrap();
+                        }
+                    }
+                }
             }
         }
 
@@ -118,7 +142,7 @@ impl Client {
 
     fn write_message<S: Into<String>>(&self, message: S) -> Result<()> {
         let mut writer = BufWriter::new(&self.stream);
-        writer.write_fmt(format_args!("{}", message.into()))?;
+        writer.write_fmt(format_args!("{}\n", message.into()))?;
         writer.flush()?;
 
         Ok(())
@@ -140,18 +164,61 @@ impl Client {
                                         self.tx
                                             .send(SendAction::AddPlayer(hash, String::from(name)))
                                             .unwrap();
+                                        self.write_message(format!("Your hash is {:08X}.", hash))?
                                     }
                                 }
                             }
                             None => self.write_error("No name provided.")?,
                         }
                     }
-                    Some("list") => {}
                     Some(_) => {}
                     None => {}
                 }
             }
-            Some(x) => self.write_error(format!("Unknown command \"{}\"\n", x))?,
+            Some(command) => {
+                match self.player {
+                    Some(hash) => {
+                        match command {
+                            "table" => {
+                                match partiter.next() {
+                                    Some("new") => {
+                                        match partiter.next() {
+                                            Some(name) => {
+                                                self.tx
+                                                    .send(SendAction::AddTable(String::from(name)))
+                                                    .unwrap();
+                                            }
+                                            None => self.write_error("No name provided.")?,
+                                        }
+                                    }
+                                    Some("list") => {
+                                        self.tx.send(SendAction::ListTables(self.id)).unwrap();
+                                        match self.rx.recv() {
+                                            Ok(AnswerAction::TableList(tables)) => {
+                                                for table in tables {
+                                                    self.write_message(
+                                                        format!("{:08X} {}", table.id, table.name),
+                                                    )?;
+                                                }
+                                            }
+                                            Ok(_) => {}
+                                            Err(_) => {}
+                                        }
+                                    }
+                                    Some(_) => {}
+                                    None => {}
+                                }
+                            }
+                            x => self.write_error(format!("Unknown command \"{}\".", x))?,
+                        }
+                    }
+                    None => {
+                        self.write_error(
+                            "Please register with the \"player name\" command.",
+                        )?
+                    }
+                }
+            }
             None => {}
         }
 
