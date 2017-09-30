@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::collections::HashMap;
 use std::net::{TcpListener, TcpStream};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use rand::random;
 use game::*;
@@ -10,30 +11,64 @@ use game::*;
 
 pub struct Server {
     listener: TcpListener,
+    channels: HashMap<u16, mpsc::Sender<AnswerAction>>,
     players: HashMap<u64, Player>,
 }
 
 pub struct Client {
     id: u16,
     stream: TcpStream,
+    tx: mpsc::Sender<SendAction>,
+    rx: mpsc::Receiver<AnswerAction>,
     player: Option<u64>,
+}
+
+pub enum SendAction {
+    AnswerChannel(u16, mpsc::Sender<AnswerAction>),
+    AddPlayer(u64, String),
+    GetPlayers(u16),
+    Nothing,
+}
+
+pub enum AnswerAction {
+
 }
 
 impl Server {
     pub fn new(address: &'static str) -> Result<Server> {
         Ok(Server {
             listener: TcpListener::bind(address)?,
+            channels: HashMap::new(),
             players: HashMap::new(),
         })
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let mut id = 0;
+        let listener = self.listener.try_clone().unwrap();
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            let mut id = 0;
+            for stream in listener.incoming() {
+                let (tx2, rx2) = mpsc::channel();
+                tx.send(SendAction::AnswerChannel(id, tx2)).unwrap();
+                let mut client = Client::new(id, stream.unwrap(), rx2, tx.clone());
+                thread::spawn(move || client.handle());
+                id = id + 1;
+            }
+        });
 
-        for stream in self.listener.incoming() {
-            let mut client = Client::new(id, stream?);
-            thread::spawn(move || client.handle());
-            id = id + 1;
+        for message in rx {
+            match message {
+                SendAction::AnswerChannel(id, channel) => {
+                    self.channels.insert(id, channel);
+                }
+                SendAction::AddPlayer(hash, name) => {
+                    self.players.insert(hash, Player::new(name));
+                    println!("{} inserted", hash);
+                }
+                SendAction::GetPlayers(_) => {}
+                SendAction::Nothing => {}
+            }
         }
 
         Ok(())
@@ -41,9 +76,16 @@ impl Server {
 }
 
 impl Client {
-    pub fn new(id: u16, stream: TcpStream) -> Client {
+    pub fn new(
+        id: u16,
+        stream: TcpStream,
+        rx: mpsc::Receiver<AnswerAction>,
+        tx: mpsc::Sender<SendAction>,
+    ) -> Client {
         Client {
             id: id,
+            tx: tx,
+            rx: rx,
             stream: stream,
             player: None,
         }
@@ -89,19 +131,23 @@ impl Client {
                 match partiter.next() {
                     Some("name") => {
                         match partiter.next() {
-                            Some(x) => {
+                            Some(name) => {
                                 match self.player {
                                     Some(_) => self.write_error("Already registered.")?,
                                     None => {
                                         let hash: u64 = random();
-                                        println!("{:04X}", hash);
+                                        self.player = Some(hash);
+                                        self.tx
+                                            .send(SendAction::AddPlayer(hash, String::from(name)))
+                                            .unwrap();
                                     }
                                 }
                             }
                             None => self.write_error("No name provided.")?,
                         }
                     }
-                    Some(x) => println!("{}", x),
+                    Some("list") => {}
+                    Some(_) => {}
                     None => {}
                 }
             }
