@@ -1,4 +1,4 @@
-use std::io::Result;
+use std::io::{Result, Error, ErrorKind};
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::collections::HashMap;
@@ -12,30 +12,31 @@ use game::*;
 
 pub struct Server {
     listener: TcpListener,
-    channels: HashMap<u16, mpsc::Sender<AnswerAction>>,
+    channels: HashMap<u16, mpsc::Sender<Result<AnswerAction>>>,
     players: HashMap<u64, Player>,
-    tables: Vec<Table>,
+    tables: HashMap<u64, Table>,
 }
 
 pub struct Client {
     id: u16,
     stream: TcpStream,
-    tx: mpsc::Sender<SendAction>,
-    rx: mpsc::Receiver<AnswerAction>,
+    tx: mpsc::Sender<(u16, SendAction)>,
+    rx: mpsc::Receiver<Result<AnswerAction>>,
     player: Option<u64>,
+    table: Option<u64>,
 }
 
 pub enum SendAction {
-    AnswerChannel(u16, mpsc::Sender<AnswerAction>),
+    AnswerChannel(mpsc::Sender<Result<AnswerAction>>),
     AddPlayer(u64, String),
     AddTable(String),
-    ListTables(u16),
-    GetPlayer(u16, u64),
+    ListTables,
+    JoinTable(u64, u64),
 }
 
 pub enum AnswerAction {
-    Player(Option<Player>),
-    TableList(Vec<Table>),
+    TableList(HashMap<u64, Table>),
+    Nothing,
 }
 
 impl Server {
@@ -44,7 +45,7 @@ impl Server {
             listener: TcpListener::bind(address)?,
             channels: HashMap::new(),
             players: HashMap::new(),
-            tables: Vec::new(),
+            tables: HashMap::new(),
         })
     }
 
@@ -55,40 +56,43 @@ impl Server {
             let mut id = 0;
             for stream in listener.incoming() {
                 let (tx2, rx2) = mpsc::channel();
-                tx.send(SendAction::AnswerChannel(id, tx2)).unwrap();
+                tx.send((id, SendAction::AnswerChannel(tx2))).unwrap();
                 let mut client = Client::new(id, stream.unwrap(), rx2, tx.clone());
                 thread::spawn(move || client.handle());
                 id = id + 1;
             }
         });
 
-        for message in rx {
-            match message {
-                SendAction::AnswerChannel(id, channel) => {
+        for (id, action) in rx {
+            match action {
+                SendAction::AnswerChannel(channel) => {
                     self.channels.insert(id, channel);
                 }
                 SendAction::AddPlayer(hash, name) => {
                     self.players.insert(hash, Player::new(name));
                 }
                 SendAction::AddTable(name) => {
-                    self.tables.push(Table::new(name));
+                    self.tables.insert(random(), Table::new(name));
                 }
-                SendAction::ListTables(id) => {
+                SendAction::ListTables => {
                     let channel = self.channels.get(&id).unwrap();
                     channel
-                        .send(AnswerAction::TableList(self.tables.clone()))
+                        .send(Ok(AnswerAction::TableList(self.tables.clone())))
                         .unwrap();
                 }
-                SendAction::GetPlayer(id, hash) => {
+                SendAction::JoinTable(tableid, player) => {
                     let channel = self.channels.get(&id).unwrap();
-                    match self.players.get(&hash) {
-                        Some(player) => {
-                            channel
-                                .send(AnswerAction::Player(Some(player.clone())))
-                                .unwrap();
+                    match self.tables.get_mut(&tableid) {
+                        Some(table) => {
+                            match table.add_player(player) {
+                                Ok(_) => channel.send(Ok(AnswerAction::Nothing)).unwrap(),
+                                Err(e) => channel.send(Err(e)).unwrap(),
+                            }
                         }
                         None => {
-                            channel.send(AnswerAction::Player(None)).unwrap();
+                            channel
+                                .send(Err(Error::new(ErrorKind::Other, "Table not found.")))
+                                .unwrap()
                         }
                     }
                 }
@@ -103,8 +107,8 @@ impl Client {
     pub fn new(
         id: u16,
         stream: TcpStream,
-        rx: mpsc::Receiver<AnswerAction>,
-        tx: mpsc::Sender<SendAction>,
+        rx: mpsc::Receiver<Result<AnswerAction>>,
+        tx: mpsc::Sender<(u16, SendAction)>,
     ) -> Client {
         Client {
             id: id,
@@ -112,6 +116,7 @@ impl Client {
             rx: rx,
             stream: stream,
             player: None,
+            table: None,
         }
     }
 
@@ -162,7 +167,10 @@ impl Client {
                                         let hash: u64 = random();
                                         self.player = Some(hash);
                                         self.tx
-                                            .send(SendAction::AddPlayer(hash, String::from(name)))
+                                            .send((
+                                                self.id,
+                                                SendAction::AddPlayer(hash, String::from(name)),
+                                            ))
                                             .unwrap();
                                         self.write_message(format!("Your hash is {:08X}.", hash))?
                                     }
@@ -185,24 +193,42 @@ impl Client {
                                         match partiter.next() {
                                             Some(name) => {
                                                 self.tx
-                                                    .send(SendAction::AddTable(String::from(name)))
+                                                    .send((
+                                                        self.id,
+                                                        SendAction::AddTable(String::from(name)),
+                                                    ))
                                                     .unwrap();
                                             }
                                             None => self.write_error("No name provided.")?,
                                         }
                                     }
                                     Some("list") => {
-                                        self.tx.send(SendAction::ListTables(self.id)).unwrap();
+                                        self.tx.send((self.id, SendAction::ListTables)).unwrap();
                                         match self.rx.recv() {
-                                            Ok(AnswerAction::TableList(tables)) => {
-                                                for table in tables {
+                                            Ok(Ok(AnswerAction::TableList(tables))) => {
+                                                for (tableid, table) in tables {
                                                     self.write_message(
-                                                        format!("{:08X} {}", table.id, table.name),
+                                                        format!("{:08X} {}", tableid, table.name),
                                                     )?;
                                                 }
                                             }
                                             Ok(_) => {}
                                             Err(_) => {}
+                                        }
+                                    }
+                                    Some("join") => {
+                                        match partiter.next() {
+                                            Some(table) => {
+                                                match u64::from_str_radix(table, 16) {
+                                                    Ok(tableid) => {
+                                                        self.tx
+                                                        .send((self.id, SendAction::JoinTable(hash, tableid)))
+                                                        .unwrap()
+                                                    }
+                                                    Err(_) => self.write_error("Invalid table.")?,
+                                                }
+                                            }
+                                            None => self.write_error("No table specified.")?,
                                         }
                                     }
                                     Some(_) => {}
