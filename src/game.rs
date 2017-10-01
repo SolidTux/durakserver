@@ -19,16 +19,16 @@ pub struct Game {
 #[derive(Debug, Clone)]
 pub struct Table {
     pub name: String,
-    pub players: HashMap<ClientHash, Player>,
+    pub players: Vec<ClientHash>,
     pub trump: Option<Suite>,
-    pub max_players: u8,
-    pub min_players: u8,
+    pub max_players: usize,
+    pub min_players: usize,
     pub state: TableState,
     pub draw_stack: Vec<Card>,
     pub table_stacks: Vec<(Card, Option<Card>)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TableState {
     Idle,
     Game,
@@ -92,6 +92,24 @@ impl Game {
                 None
             }
             Command::Table(TableCommand::List) => Some(Answer::TableList(self.tables.clone())),
+            Command::Table(TableCommand::Join(tablehash)) => {
+                match self.tables.get_mut(&tablehash) {
+                    Some(table) => {
+                        if (table.state == TableState::Idle) &&
+                            (table.players.len() < table.max_players)
+                        {
+                            if let Some(player) = self.players.get_mut(client) {
+                                if let None = player.table {
+                                    player.table = Some(tablehash);
+                                    table.players.push(*client);
+                                }
+                            }
+                        }
+                    }
+                    None => {}
+                }
+                None
+            }
         }
     }
 }
@@ -100,7 +118,7 @@ impl Table {
     pub fn new<S: Into<String>>(name: S) -> Table {
         Table {
             name: name.into(),
-            players: HashMap::new(),
+            players: Vec::new(),
             trump: None,
             max_players: 6,
             min_players: 2,

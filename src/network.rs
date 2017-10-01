@@ -1,3 +1,4 @@
+use std::u64;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io;
@@ -57,6 +58,7 @@ pub enum PlayerCommand {
 #[derive(Debug, Clone)]
 pub enum TableCommand {
     New(String),
+    Join(TableHash),
     List,
 }
 
@@ -230,6 +232,19 @@ impl TableCommand {
             Some("new") => {
                 match parts.next() {
                     Some(name) => Ok(TableCommand::New(name.trim().into())),
+                    None => Err(DurakError::ParserError("table new tail".into())),
+                }
+            }
+            Some("join") => {
+                match parts.next() {
+                    Some(id) => {
+                        match TableHash::from_str_radix(id, 16) {
+                            Ok(tablehash) => Ok(TableCommand::Join(tablehash)),
+                            Err(_) => Err(DurakError::ParserError(
+                                "Could not parse table hash.".into(),
+                            )),
+                        }
+                    }
                     None => Err(DurakError::ParserError("player name tail".into())),
                 }
             }
