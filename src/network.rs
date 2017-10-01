@@ -7,6 +7,7 @@ use std::net::TcpListener;
 use std::result;
 use std::sync::mpsc;
 use std::thread;
+use std::time;
 
 use rand::random;
 use game::*;
@@ -132,6 +133,7 @@ impl Server {
                     Err(_) => {}
                 }
             }
+            thread::sleep(time::Duration::from_millis(1));
         }
     }
 }
