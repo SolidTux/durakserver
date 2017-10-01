@@ -7,8 +7,8 @@ pub type TableHash = u64;
 #[derive(Debug, Clone)]
 pub struct Player {
     pub name: String,
-    cards: Vec<Card>,
-    table: Option<TableHash>,
+    pub cards: Vec<Card>,
+    pub table: Option<TableHash>,
 }
 
 pub struct Game {
@@ -89,10 +89,21 @@ impl Game {
                 None
             }
             Command::Player(PlayerCommand::List) => {
-                Some((
-                    vec![*client],
-                    Answer::PlayerList(self.players.values().cloned().collect()),
-                ))
+                Some((vec![*client], Answer::PlayerList(self.players.clone())))
+            }
+            Command::Player(PlayerCommand::State) => {
+                match self.players.get(client) {
+                    Some(player) => Some((
+                        vec![*client],
+                        Answer::PlayerState(*client, player.clone()),
+                    )),
+                    None => Some((
+                        vec![*client],
+                        Answer::Error(
+                            DurakError::GameError("Player not found.".into()),
+                        ),
+                    )),
+                }
             }
             Command::Table(TableCommand::New(name)) => {
                 self.tables.insert(random(), Table::new(name));
@@ -180,6 +191,7 @@ impl Game {
                     )),
                 }
             }
+            Command::Answer(answer) => Some((vec![*client], answer)),
         }
     }
 }

@@ -42,11 +42,13 @@ pub enum DurakError {
 pub enum Command {
     Player(PlayerCommand),
     Table(TableCommand),
+    Answer(Answer),
 }
 
 #[derive(Debug, Clone)]
 pub enum Answer {
-    PlayerList(Vec<Player>),
+    PlayerList(HashMap<ClientHash, Player>),
+    PlayerState(ClientHash, Player),
     TableList(HashMap<TableHash, Table>),
     Error(DurakError),
     Chat(ClientHash, String),
@@ -55,6 +57,7 @@ pub enum Answer {
 #[derive(Debug, Clone)]
 pub enum PlayerCommand {
     Name(String),
+    State,
     List,
 }
 
@@ -101,6 +104,7 @@ impl Server {
                                 }
                                 Err(e) => {
                                     println!("error {:016X} {:?}", id, e);
+                                    tx.send(Command::Answer(Answer::Error(e))).unwrap();
                                 }
                             }
                         }
@@ -115,12 +119,29 @@ impl Server {
                 for answer in rx {
                     match answer {
                         Answer::PlayerList(list) => {
-                            for player in list {
+                            for (hash, player) in list {
                                 writer
-                                    .write_fmt(format_args!("\t{}\n", player.name))
+                                    .write_fmt(format_args!("\t{:016X} {}\n", hash, player.name))
                                     .unwrap();
                                 writer.flush().unwrap();
                             }
+                        }
+                        Answer::PlayerState(hash, player) => {
+                            writer
+                                .write_fmt(format_args!("\thash  {:016X}\n", hash))
+                                .unwrap();
+                            writer
+                                .write_fmt(format_args!("\tname  {}\n", player.name))
+                                .unwrap();
+                            match player.table {
+                                Some(table) => {
+                                    writer
+                                        .write_fmt(format_args!("\ttable {:016X}\n", table))
+                                        .unwrap()
+                                }
+                                None => {}
+                            }
+                            writer.flush().unwrap();
                         }
                         Answer::TableList(list) => {
                             for (tablehash, table) in list {
@@ -240,6 +261,7 @@ impl PlayerCommand {
                 }
             }
             Some("list") => Ok(PlayerCommand::List),
+            Some("state") => Ok(PlayerCommand::State),
             Some(_) => Err(DurakError::ParserError("player command unknown".into())),
             None => Err(DurakError::ParserError("player no command".into())),
         }
