@@ -29,7 +29,7 @@ pub struct Server {
 
 pub type Result<T> = result::Result<T, DurakError>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DurakError {
     IOError(String),
     ChannelSendError(String),
@@ -44,11 +44,12 @@ pub enum Command {
     Table(TableCommand),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Answer {
     PlayerList(Vec<Player>),
     TableList(HashMap<TableHash, Table>),
     Error(DurakError),
+    Chat(ClientHash, String),
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +62,7 @@ pub enum PlayerCommand {
 pub enum TableCommand {
     New(String),
     Join(TableHash),
+    Chat(String),
     List,
 }
 
@@ -141,6 +143,12 @@ impl Server {
                                 .unwrap();
                             writer.flush().unwrap();
                         }
+                        Answer::Chat(sender, message) => {
+                            writer
+                                .write_fmt(format_args!("chat {:016X} {}\n", sender, message))
+                                .unwrap();
+                            writer.flush().unwrap();
+                        }
                     }
                 }
             });
@@ -157,7 +165,14 @@ impl Server {
                 match channel.try_recv() {
                     Ok(command) => {
                         match self.game.handle_command(clienthash, command) {
-                            Some(answer) => channel.send(answer).unwrap(),
+                            Some((targets, answer)) => {
+                                for target in targets {
+                                    match self.channels.get(&target) {
+                                        Some(ch) => ch.send(answer.clone()).unwrap(),
+                                        None => {}
+                                    }
+                                }
+                            }
                             None => {}
                         }
                     }
@@ -257,6 +272,12 @@ impl TableCommand {
                 }
             }
             Some("list") => Ok(TableCommand::List),
+            Some("chat") => {
+                match parts.next() {
+                    Some(message) => Ok(TableCommand::Chat(message.into())),
+                    None => Err(DurakError::ParserError("chat no message".into())),
+                }
+            }
             Some(_) => Err(DurakError::ParserError("player command unknown".into())),
             None => Err(DurakError::ParserError("player no command".into())),
         }
