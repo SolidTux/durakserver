@@ -31,10 +31,11 @@ pub type Result<T> = result::Result<T, DurakError>;
 
 #[derive(Debug)]
 pub enum DurakError {
-    IOError(io::Error),
+    IOError(String),
     ChannelSendError(String),
     ChannelRecvError(String),
     ParserError(String),
+    GameError(String),
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +48,7 @@ pub enum Command {
 pub enum Answer {
     PlayerList(Vec<Player>),
     TableList(HashMap<TableHash, Table>),
+    Error(DurakError),
 }
 
 #[derive(Debug, Clone)]
@@ -133,6 +135,12 @@ impl Server {
                                 writer.flush().unwrap();
                             }
                         }
+                        Answer::Error(error) => {
+                            writer
+                                .write_fmt(format_args!("ERROR {}\n", error.to_string()))
+                                .unwrap();
+                            writer.flush().unwrap();
+                        }
                     }
                 }
             });
@@ -163,7 +171,7 @@ impl Server {
 
 impl From<io::Error> for DurakError {
     fn from(e: io::Error) -> DurakError {
-        DurakError::IOError(e)
+        DurakError::IOError(e.description().into())
     }
 }
 
@@ -255,12 +263,6 @@ impl TableCommand {
     }
 }
 
-impl ToString for Answer {
-    fn to_string(&self) -> String {
-        "kekse".into()
-    }
-}
-
 impl<A: Send, B: Clone> DuplexChannel<A, B> {
     pub fn new() -> (DuplexChannel<A, B>, DuplexChannel<B, A>) {
         let (txa, rxa) = mpsc::channel();
@@ -286,5 +288,17 @@ impl<A, B> IntoIterator for DuplexChannel<A, B> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.rx.into_iter()
+    }
+}
+
+impl ToString for DurakError {
+    fn to_string(&self) -> String {
+        match self {
+            &DurakError::IOError(ref error) => error.clone(),
+            &DurakError::ChannelSendError(ref error) => error.clone(),
+            &DurakError::ChannelRecvError(ref error) => error.clone(),
+            &DurakError::ParserError(ref error) => error.clone(),
+            &DurakError::GameError(ref error) => error.clone(),
+        }
     }
 }

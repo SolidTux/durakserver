@@ -102,13 +102,27 @@ impl Game {
                                 if let None = player.table {
                                     player.table = Some(tablehash);
                                     table.players.push(*client);
+                                    None
+                                } else {
+                                    Some(Answer::Error(
+                                        DurakError::GameError("Already joined a table.".into()),
+                                    ))
                                 }
+                            } else {
+                                Some(Answer::Error(DurakError::GameError(
+                                    "Player not found. Please call \"player name\".".into(),
+                                )))
                             }
+                        } else {
+                            Some(Answer::Error(
+                                DurakError::GameError("Unable to join table.".into()),
+                            ))
                         }
                     }
-                    None => {}
+                    None => Some(Answer::Error(
+                        DurakError::GameError("Table not found.".into()),
+                    )),
                 }
-                None
             }
         }
     }
