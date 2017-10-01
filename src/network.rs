@@ -39,16 +39,24 @@ pub enum DurakError {
 #[derive(Debug, Clone)]
 pub enum Command {
     Player(PlayerCommand),
+    Table(TableCommand),
 }
 
 #[derive(Debug)]
 pub enum Answer {
     PlayerList(Vec<Player>),
+    TableList(HashMap<TableHash, Table>),
 }
 
 #[derive(Debug, Clone)]
 pub enum PlayerCommand {
     Name(String),
+    List,
+}
+
+#[derive(Debug, Clone)]
+pub enum TableCommand {
+    New(String),
     List,
 }
 
@@ -80,7 +88,6 @@ impl Server {
                     match reader.read_line(&mut line) {
                         Ok(0) => break,
                         Ok(_) => {
-                            println!("line: {}", line);
                             match Command::parse(line) {
                                 Ok(cmd) => {
                                     println!("send {:016X} {:?}", id, cmd);
@@ -102,10 +109,24 @@ impl Server {
                 for answer in rx {
                     match answer {
                         Answer::PlayerList(list) => {
-                            println!("answer");
                             for player in list {
                                 writer
                                     .write_fmt(format_args!("\t{}\n", player.name))
+                                    .unwrap();
+                                writer.flush().unwrap();
+                            }
+                        }
+                        Answer::TableList(list) => {
+                            for (tablehash, table) in list {
+                                writer
+                                    .write_fmt(format_args!(
+                                        "\t{:016X} {} {} {} {}\n",
+                                        tablehash,
+                                        table.players.len(),
+                                        table.min_players,
+                                        table.max_players,
+                                        table.name
+                                    ))
                                     .unwrap();
                                 writer.flush().unwrap();
                             }
@@ -169,6 +190,12 @@ impl Command {
                     None => Err(DurakError::ParserError("player tail".into())),
                 }
             }
+            Some("table") => {
+                match parts.next() {
+                    Some(tail) => Ok(Command::Table(TableCommand::parse(tail)?)),
+                    None => Err(DurakError::ParserError("table tail".into())),
+                }
+            }
             Some(x) => Err(DurakError::ParserError(format!("unknown command {}", x))),
             None => Err(DurakError::ParserError("no command".into())),
         }
@@ -183,11 +210,30 @@ impl PlayerCommand {
         match parts.next() {
             Some("name") => {
                 match parts.next() {
-                    Some(name) => Ok(PlayerCommand::Name(name.into())),
+                    Some(name) => Ok(PlayerCommand::Name(name.trim().into())),
                     None => Err(DurakError::ParserError("player name tail".into())),
                 }
             }
             Some("list") => Ok(PlayerCommand::List),
+            Some(_) => Err(DurakError::ParserError("player command unknown".into())),
+            None => Err(DurakError::ParserError("player no command".into())),
+        }
+    }
+}
+
+impl TableCommand {
+    pub fn parse<S: Into<String>>(line: S) -> Result<TableCommand> {
+        let line: String = line.into().trim().into();
+        let mut parts = line.splitn(2, ' ');
+
+        match parts.next() {
+            Some("new") => {
+                match parts.next() {
+                    Some(name) => Ok(TableCommand::New(name.trim().into())),
+                    None => Err(DurakError::ParserError("player name tail".into())),
+                }
+            }
+            Some("list") => Ok(TableCommand::List),
             Some(_) => Err(DurakError::ParserError("player command unknown".into())),
             None => Err(DurakError::ParserError("player no command".into())),
         }
