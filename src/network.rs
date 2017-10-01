@@ -5,16 +5,16 @@ use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::net::TcpListener;
 use std::result;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::mpsc;
 use std::thread;
 
 use rand::random;
 use game::*;
 
-type ClientHash = u64;
+pub type ClientHash = u64;
 
 #[derive(Debug)]
-pub struct DuplexChannel<A: Clone, B: Clone> {
+pub struct DuplexChannel<A, B> {
     tx: mpsc::Sender<A>,
     rx: mpsc::Receiver<B>,
 }
@@ -23,10 +23,6 @@ pub struct Server {
     listener: TcpListener,
     channels: HashMap<ClientHash, DuplexChannel<Answer, Command>>,
     game: Game,
-}
-
-struct Player {
-    name: String,
 }
 
 pub type Result<T> = result::Result<T, DurakError>;
@@ -44,14 +40,15 @@ pub enum Command {
     Player(PlayerCommand),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Answer {
-    Nothing,
+    PlayerList(Vec<Player>),
 }
 
 #[derive(Debug, Clone)]
 pub enum PlayerCommand {
     Name(String),
+    List,
 }
 
 impl Server {
@@ -74,8 +71,9 @@ impl Server {
             let (remote_channel, local_channel) = DuplexChannel::new();
             tx.send((id, remote_channel)).unwrap();
             let tx = local_channel.tx;
+            let local_stream = stream.try_clone().unwrap();
             thread::spawn(move || {
-                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut reader = BufReader::new(local_stream);
                 loop {
                     let mut line = String::new();
                     match reader.read_line(&mut line) {
@@ -97,8 +95,22 @@ impl Server {
                 }
             });
             let rx = local_channel.rx;
-            thread::spawn(move || for answer in rx {
-                println!("{:?}", answer);
+            let local_stream = stream.try_clone().unwrap();
+            thread::spawn(move || {
+                let mut writer = BufWriter::new(local_stream);
+                for answer in rx {
+                    match answer {
+                        Answer::PlayerList(list) => {
+                            println!("answer");
+                            for player in list {
+                                writer
+                                    .write_fmt(format_args!("\t{}\n", player.name))
+                                    .unwrap();
+                                writer.flush().unwrap();
+                            }
+                        }
+                    }
+                }
             });
         });
 
@@ -111,7 +123,12 @@ impl Server {
             }
             for (clienthash, channel) in &self.channels {
                 match channel.try_recv() {
-                    Ok(command) => println!("{:016X} {:?}", clienthash, command),
+                    Ok(command) => {
+                        match self.game.handle_command(clienthash, command) {
+                            Some(answer) => channel.send(answer).unwrap(),
+                            None => {}
+                        }
+                    }
                     Err(_) => {}
                 }
             }
@@ -168,13 +185,20 @@ impl PlayerCommand {
                     None => Err(DurakError::ParserError("player name tail".into())),
                 }
             }
+            Some("list") => Ok(PlayerCommand::List),
             Some(_) => Err(DurakError::ParserError("player command unknown".into())),
             None => Err(DurakError::ParserError("player no command".into())),
         }
     }
 }
 
-impl<A: Clone + Send, B: Clone> DuplexChannel<A, B> {
+impl ToString for Answer {
+    fn to_string(&self) -> String {
+        "kekse".into()
+    }
+}
+
+impl<A: Send, B: Clone> DuplexChannel<A, B> {
     pub fn new() -> (DuplexChannel<A, B>, DuplexChannel<B, A>) {
         let (txa, rxa) = mpsc::channel();
         let (txb, rxb) = mpsc::channel();
@@ -193,7 +217,7 @@ impl<A: Clone + Send, B: Clone> DuplexChannel<A, B> {
     }
 }
 
-impl<A: Clone, B: Clone> IntoIterator for DuplexChannel<A, B> {
+impl<A, B> IntoIterator for DuplexChannel<A, B> {
     type Item = B;
     type IntoIter = mpsc::IntoIter<B>;
 
