@@ -66,6 +66,7 @@ pub enum TableCommand {
     New(String),
     Join(TableHash),
     Chat(String),
+    Leave,
     List,
 }
 
@@ -294,6 +295,7 @@ impl TableCommand {
                 }
             }
             Some("list") => Ok(TableCommand::List),
+            Some("leave") => Ok(TableCommand::Leave),
             Some("chat") => {
                 match parts.next() {
                     Some(message) => Ok(TableCommand::Chat(message.into())),
