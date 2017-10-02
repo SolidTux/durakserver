@@ -234,17 +234,21 @@ impl Command {
             Some("player") => {
                 match parts.next() {
                     Some(tail) => Ok(Command::Player(PlayerCommand::parse(tail)?)),
-                    None => Err(DurakError::ParserError("player tail".into())),
+                    None => Err(DurakError::ParserError(
+                        "No player command specified.".into(),
+                    )),
                 }
             }
             Some("table") => {
                 match parts.next() {
                     Some(tail) => Ok(Command::Table(TableCommand::parse(tail)?)),
-                    None => Err(DurakError::ParserError("table tail".into())),
+                    None => Err(DurakError::ParserError(
+                        "No table command specified.".into(),
+                    )),
                 }
             }
-            Some(x) => Err(DurakError::ParserError(format!("unknown command {}", x))),
-            None => Err(DurakError::ParserError("no command".into())),
+            Some(x) => Err(DurakError::ParserError(format!("Unknown command {}.", x))),
+            None => Err(DurakError::ParserError("No command specified.".into())),
         }
     }
 }
@@ -258,13 +262,17 @@ impl PlayerCommand {
             Some("name") => {
                 match parts.next() {
                     Some(name) => Ok(PlayerCommand::Name(name.trim().into())),
-                    None => Err(DurakError::ParserError("player name tail".into())),
+                    None => Err(DurakError::ParserError("No name specified.".into())),
                 }
             }
             Some("list") => Ok(PlayerCommand::List),
             Some("state") => Ok(PlayerCommand::State),
-            Some(_) => Err(DurakError::ParserError("player command unknown".into())),
-            None => Err(DurakError::ParserError("player no command".into())),
+            Some(x) => Err(DurakError::ParserError(
+                format!("Unknown player command {}.", x),
+            )),
+            None => Err(DurakError::ParserError(
+                "No player command specified.".into(),
+            )),
         }
     }
 }
@@ -278,7 +286,7 @@ impl TableCommand {
             Some("new") => {
                 match parts.next() {
                     Some(name) => Ok(TableCommand::New(name.trim().into())),
-                    None => Err(DurakError::ParserError("table new tail".into())),
+                    None => Err(DurakError::ParserError("No table name specified.".into())),
                 }
             }
             Some("join") => {
@@ -291,7 +299,7 @@ impl TableCommand {
                             )),
                         }
                     }
-                    None => Err(DurakError::ParserError("player name tail".into())),
+                    None => Err(DurakError::ParserError("No table hash specified.".into())),
                 }
             }
             Some("list") => Ok(TableCommand::List),
@@ -299,11 +307,15 @@ impl TableCommand {
             Some("chat") => {
                 match parts.next() {
                     Some(message) => Ok(TableCommand::Chat(message.into())),
-                    None => Err(DurakError::ParserError("chat no message".into())),
+                    None => Err(DurakError::ParserError("No message specified.".into())),
                 }
             }
-            Some(_) => Err(DurakError::ParserError("player command unknown".into())),
-            None => Err(DurakError::ParserError("player no command".into())),
+            Some(x) => Err(DurakError::ParserError(
+                format!("Unknown table command {}.", x),
+            )),
+            None => Err(DurakError::ParserError(
+                "No table command specified.".into(),
+            )),
         }
     }
 }
