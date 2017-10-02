@@ -170,7 +170,8 @@ impl Game {
                     if let Some(tablehash) = player.table {
                         player.table = None;
                         if let Some(table) = self.tables.get_mut(&tablehash) {
-                            unimplemented!();
+                            table.players.retain(|&x| x != *client);
+                            None
                         } else {
                             Some((
                                 vec![*client],
