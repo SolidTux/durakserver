@@ -281,7 +281,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                         if let Some(ref mut state) = table.game_state {
                                             table.rules.apply(
                                                 state,
-                                                &self.players.keys().collect(),
+                                                &table.players,
                                                 GameAction::DealCards,
                                             )
                                         };

@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use rand::{thread_rng, Rng};
 
 pub trait GameRules {
-    fn apply(&self, &mut GameState, &Vec<&ClientHash>, GameAction);
+    fn apply(&self, &mut GameState, &Vec<ClientHash>, GameAction);
 }
 
 #[derive(Clone)]
@@ -19,7 +19,7 @@ impl DefaultRules {
 }
 
 impl GameRules for DefaultRules {
-    fn apply(&self, state: &mut GameState, players: &Vec<&ClientHash>, action: GameAction) {
+    fn apply(&self, state: &mut GameState, players: &Vec<ClientHash>, action: GameAction) {
         let mut rng = thread_rng();
         match action {
             GameAction::DealCards => {
@@ -45,7 +45,7 @@ impl GameRules for DefaultRules {
                     }
                 }
                 rng.shuffle(cards.as_mut_slice());
-                for &player in players {
+                for player in players {
                     state.player_cards.insert(*player, HashSet::new());
                     for _ in 0..self.cards_per_player {
                         state.player_cards.get_mut(player).unwrap().insert(
