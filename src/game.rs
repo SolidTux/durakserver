@@ -33,8 +33,8 @@ pub struct Table<T: GameRules + Clone + Send> {
 
 #[derive(Debug, Clone)]
 pub struct GameState {
-    player_cards: HashMap<ClientHash, HashSet<Card>>,
-    total_cards: Vec<Card>,
+    pub player_cards: HashMap<ClientHash, HashSet<Card>>,
+    pub total_cards: Vec<Card>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,13 +43,13 @@ pub enum TableState {
     Game,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Card {
     value: CardValue,
     suite: Suite,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum CardValue {
     Number6,
     Number7,
@@ -61,7 +61,7 @@ pub enum CardValue {
     Ace,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub enum Suite {
     Hearts,
     Diamonds,
@@ -279,9 +279,12 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                         table.state = TableState::Game;
                                         table.game_state = Some(GameState::new());
                                         if let Some(ref mut state) = table.game_state {
-                                            table.rules.apply(state, GameAction::DrawCards)
+                                            table.rules.apply(
+                                                state,
+                                                &self.players.keys().collect(),
+                                                GameAction::DealCards,
+                                            )
                                         };
-                                        println!("{:?}", table.game_state);
                                         println!("{:?}", table.game_state);
                                         Some((
                                             AnswerTarget::Direct,
@@ -355,6 +358,38 @@ impl GameState {
         GameState {
             player_cards: HashMap::new(),
             total_cards: cards,
+        }
+    }
+}
+
+impl fmt::Debug for Card {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}{:?}", self.value, self.suite)
+    }
+}
+
+impl fmt::Debug for Suite {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Suite::Hearts => write!(f, "♥"),
+            &Suite::Diamonds => write!(f, "♦"),
+            &Suite::Clubs => write!(f, "♣"),
+            &Suite::Spades => write!(f, "♠"),
+        }
+    }
+}
+
+impl fmt::Debug for CardValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &CardValue::Number6 => write!(f, "6"),
+            &CardValue::Number7 => write!(f, "7"),
+            &CardValue::Number8 => write!(f, "8"),
+            &CardValue::Number9 => write!(f, "9"),
+            &CardValue::Number10 => write!(f, "10"),
+            &CardValue::Jack => write!(f, "J"),
+            &CardValue::Queen => write!(f, "Q"),
+            &CardValue::Ace => write!(f, "A"),
         }
     }
 }

@@ -85,7 +85,7 @@ pub enum GameCommand {
 
 #[derive(Debug, Clone)]
 pub enum GameAction {
-    DrawCards,
+    DealCards,
 }
 
 impl<T: GameRules + Clone + Send + 'static> Server<T> {
