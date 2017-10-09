@@ -4,7 +4,7 @@ use std::error::Error;
 use std::io;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
-use std::net::TcpListener;
+use std::net::{TcpListener, ToSocketAddrs};
 use std::result;
 use std::sync::mpsc;
 use std::thread;
@@ -36,12 +36,14 @@ pub enum DurakError {
     ChannelRecvError(String),
     ParserError(String),
     GameError(String),
+    Unimplemented,
 }
 
 #[derive(Debug, Clone)]
 pub enum Command {
     Player(PlayerCommand),
     Table(TableCommand),
+    Game(GameCommand),
     Answer(Answer),
 }
 
@@ -70,10 +72,15 @@ pub enum TableCommand {
     List,
 }
 
+#[derive(Debug, Clone)]
+pub enum GameCommand {
+    Start
+}
+
 impl Server {
-    pub fn new<S: Into<String>>(address: S) -> Result<Server> {
+    pub fn new<S: ToSocketAddrs>(address: S) -> Result<Server> {
         Ok(Server {
-            listener: TcpListener::bind(address.into())?,
+            listener: TcpListener::bind(address)?,
             channels: HashMap::new(),
             game: Game::new(),
         })
@@ -247,6 +254,14 @@ impl Command {
                     )),
                 }
             }
+            Some("game") => {
+                match parts.next() {
+                    Some(tail) => Ok(Command::Game(GameCommand::parse(tail)?)),
+                    None => Err(DurakError::ParserError(
+                        "No game command specified.".into(),
+                    )),
+                }
+            }
             Some(x) => Err(DurakError::ParserError(format!("Unknown command {}.", x))),
             None => Err(DurakError::ParserError("No command specified.".into())),
         }
@@ -320,6 +335,23 @@ impl TableCommand {
     }
 }
 
+impl GameCommand {
+    pub fn parse<S: Into<String>>(line: S) -> Result<GameCommand> {
+        let line: String = line.into().trim().into();
+        let mut parts = line.splitn(2, ' ');
+
+        match parts.next() {
+            Some("start") => Ok(GameCommand::Start),
+            Some(x) => Err(DurakError::ParserError(
+                format!("Unknown game command {}.", x),
+            )),
+            None => Err(DurakError::ParserError(
+                "No table command specified.".into(),
+            )),
+        }
+    }
+}
+
 impl<A: Send, B: Clone> DuplexChannel<A, B> {
     pub fn new() -> (DuplexChannel<A, B>, DuplexChannel<B, A>) {
         let (txa, rxa) = mpsc::channel();
@@ -356,6 +388,7 @@ impl ToString for DurakError {
             &DurakError::ChannelRecvError(ref error) => error.clone(),
             &DurakError::ParserError(ref error) => error.clone(),
             &DurakError::GameError(ref error) => error.clone(),
+            &DurakError::Unimplemented => "Unimplemented function.".into(),
         }
     }
 }

@@ -106,6 +106,7 @@ impl Game {
                 }
             }
             Command::Table(tablecommand) => self.handle_table_command(client, tablecommand),
+            Command::Game(gamecommand) => self.handle_game_command(client, gamecommand),
             Command::Answer(answer) => Some((vec![*client], answer)),
         }
     }
@@ -231,6 +232,23 @@ impl Game {
                     )),
                 }
             }
+        }
+    }
+
+    fn handle_game_command (
+        &mut self,
+        client: &ClientHash,
+        command: GameCommand,
+    ) -> Option<(Vec<ClientHash>, Answer)> {
+        match command {
+            GameCommand::Start =>  {
+                Some((
+                    vec![*client],
+                    Answer::Error(
+                        DurakError::Unimplemented
+                    )
+                ))
+            },
         }
     }
 }
