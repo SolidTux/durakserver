@@ -7,8 +7,11 @@ rust:
 os:
     - linux
     - osx
+    - windows
 
 matrix:
     allow_failures:
         - rust: nightly
-        - os: osx
+        - os:
+            - osx
+            - windows
