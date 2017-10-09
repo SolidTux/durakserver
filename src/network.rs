@@ -14,6 +14,10 @@ use rand::random;
 use game::*;
 use rules::*;
 
+macro_rules! durak_error {
+    ($t:ident, $x:expr) => (DurakError::new(DurakErrorType::$t, $x))
+}
+
 pub type ClientHash = u64;
 
 #[derive(Debug)]
@@ -31,12 +35,18 @@ pub struct Server<T: GameRules + Clone + Send> {
 pub type Result<T> = result::Result<T, DurakError>;
 
 #[derive(Debug, Clone)]
-pub enum DurakError {
-    IOError(String),
-    ChannelSendError(String),
-    ChannelRecvError(String),
-    ParserError(String),
-    GameError(String),
+pub struct DurakError {
+    error_type: DurakErrorType,
+    message: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum DurakErrorType {
+    IOError,
+    ChannelSendError,
+    ChannelRecvError,
+    ParserError,
+    GameError,
     Unimplemented,
 }
 
@@ -253,21 +263,30 @@ impl<T: GameRules + Clone + Send + 'static> Server<T> {
     }
 }
 
+impl DurakError {
+    pub fn new<S: Into<String>>(t: DurakErrorType, m: S) -> DurakError {
+        DurakError {
+            error_type: t,
+            message: m.into(),
+        }
+    }
+}
+
 impl From<io::Error> for DurakError {
     fn from(e: io::Error) -> DurakError {
-        DurakError::IOError(e.description().into())
+        DurakError::new(DurakErrorType::IOError, e.description())
     }
 }
 
 impl From<mpsc::TryRecvError> for DurakError {
     fn from(e: mpsc::TryRecvError) -> DurakError {
-        DurakError::ChannelRecvError(e.description().into())
+        DurakError::new(DurakErrorType::ChannelRecvError, e.description())
     }
 }
 
 impl<T: Send> From<mpsc::SendError<T>> for DurakError {
     fn from(e: mpsc::SendError<T>) -> DurakError {
-        DurakError::ChannelSendError(e.description().into())
+        DurakError::new(DurakErrorType::ChannelSendError, e.description())
     }
 }
 
@@ -281,27 +300,23 @@ impl<T: GameRules + Clone + Send> Command<T> {
             Some("player") => {
                 match parts.next() {
                     Some(tail) => Ok(Command::Player(PlayerCommand::parse(tail)?)),
-                    None => Err(DurakError::ParserError(
-                        "No player command specified.".into(),
-                    )),
+                    None => Err(durak_error!(ParserError, "No player command specified.")),
                 }
             }
             Some("table") => {
                 match parts.next() {
                     Some(tail) => Ok(Command::Table(TableCommand::parse(tail)?)),
-                    None => Err(DurakError::ParserError(
-                        "No table command specified.".into(),
-                    )),
+                    None => Err(durak_error!(ParserError, "No table command specified.")),
                 }
             }
             Some("game") => {
                 match parts.next() {
                     Some(tail) => Ok(Command::Game(GameCommand::parse(tail)?)),
-                    None => Err(DurakError::ParserError("No game command specified.".into())),
+                    None => Err(durak_error!(ParserError, "No game command specified.")),
                 }
             }
-            Some(x) => Err(DurakError::ParserError(format!("Unknown command {}.", x))),
-            None => Err(DurakError::ParserError("No command specified.".into())),
+            Some(x) => Err(durak_error!(ParserError, format!("Unknown command {}.", x))),
+            None => Err(durak_error!(ParserError, "No command specified.")),
         }
     }
 }
@@ -315,17 +330,16 @@ impl PlayerCommand {
             Some("name") => {
                 match parts.next() {
                     Some(name) => Ok(PlayerCommand::Name(name.trim().into())),
-                    None => Err(DurakError::ParserError("No name specified.".into())),
+                    None => Err(durak_error!(ParserError, "No name specified.")),
                 }
             }
             Some("list") => Ok(PlayerCommand::List),
             Some("state") => Ok(PlayerCommand::State),
-            Some(x) => Err(DurakError::ParserError(
-                format!("Unknown player command {}.", x),
+            Some(x) => Err(durak_error!(
+                ParserError,
+                format!("Unknown player command {}.", x)
             )),
-            None => Err(DurakError::ParserError(
-                "No player command specified.".into(),
-            )),
+            None => Err(durak_error!(ParserError, "No player command specified.")),
         }
     }
 }
@@ -339,7 +353,7 @@ impl TableCommand {
             Some("new") => {
                 match parts.next() {
                     Some(name) => Ok(TableCommand::New(name.trim().into())),
-                    None => Err(DurakError::ParserError("No table name specified.".into())),
+                    None => Err(durak_error!(ParserError, "No table name specified.")),
                 }
             }
             Some("join") => {
@@ -347,12 +361,10 @@ impl TableCommand {
                     Some(id) => {
                         match TableHash::from_str_radix(id, 16) {
                             Ok(tablehash) => Ok(TableCommand::Join(tablehash)),
-                            Err(_) => Err(DurakError::ParserError(
-                                "Could not parse table hash.".into(),
-                            )),
+                            Err(_) => Err(durak_error!(ParserError, "Could not parse table hash.")),
                         }
                     }
-                    None => Err(DurakError::ParserError("No table hash specified.".into())),
+                    None => Err(durak_error!(ParserError, "No table hash specified.")),
                 }
             }
             Some("list") => Ok(TableCommand::List),
@@ -360,15 +372,14 @@ impl TableCommand {
             Some("chat") => {
                 match parts.next() {
                     Some(message) => Ok(TableCommand::Chat(message.into())),
-                    None => Err(DurakError::ParserError("No message specified.".into())),
+                    None => Err(durak_error!(ParserError, "No message specified.")),
                 }
             }
-            Some(x) => Err(DurakError::ParserError(
-                format!("Unknown table command {}.", x),
+            Some(x) => Err(durak_error!(
+                ParserError,
+                format!("Unknown table command {}.", x)
             )),
-            None => Err(DurakError::ParserError(
-                "No table command specified.".into(),
-            )),
+            None => Err(durak_error!(ParserError, "No table command specified.")),
         }
     }
 }
@@ -380,12 +391,11 @@ impl GameCommand {
 
         match parts.next() {
             Some("start") => Ok(GameCommand::Start),
-            Some(x) => Err(DurakError::ParserError(
-                format!("Unknown game command {}.", x),
+            Some(x) => Err(durak_error!(
+                ParserError,
+                format!("Unknown game command {}.", x)
             )),
-            None => Err(DurakError::ParserError(
-                "No table command specified.".into(),
-            )),
+            None => Err(durak_error!(ParserError, "No table command specified.")),
         }
     }
 }
@@ -420,13 +430,6 @@ impl<A, B> IntoIterator for DuplexChannel<A, B> {
 
 impl ToString for DurakError {
     fn to_string(&self) -> String {
-        match self {
-            &DurakError::IOError(ref error) => error.clone(),
-            &DurakError::ChannelSendError(ref error) => error.clone(),
-            &DurakError::ChannelRecvError(ref error) => error.clone(),
-            &DurakError::ParserError(ref error) => error.clone(),
-            &DurakError::GameError(ref error) => error.clone(),
-            &DurakError::Unimplemented => "Unimplemented function.".into(),
-        }
+        self.message.clone()
     }
 }

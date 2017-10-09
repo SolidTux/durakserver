@@ -4,6 +4,11 @@ use std::fmt;
 use network::*;
 use rules::*;
 
+macro_rules! direct_error {
+    ($t:ident, $x: expr) => (Some((AnswerTarget::Direct,
+        Answer::Error(DurakError::new(DurakErrorType::$t, $x)))));
+}
+
 pub type TableHash = u64;
 
 #[derive(Debug, Clone)]
@@ -119,12 +124,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
                         AnswerTarget::Direct,
                         Answer::PlayerState(*client, player.clone()),
                     )),
-                    None => Some((
-                        AnswerTarget::Direct,
-                        Answer::Error(
-                            DurakError::GameError("Player not found.".into()),
-                        ),
-                    )),
+                    None => direct_error!(GameError, "Player not found."),
                 }
             }
             Command::Table(tablecommand) => self.handle_table_command(client, tablecommand),
@@ -162,36 +162,19 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                     table.players.push(*client);
                                     None
                                 } else {
-                                    Some((
-                                        AnswerTarget::Direct,
-                                        Answer::Error(
-                                            DurakError::GameError("Already joined a table.".into()),
-                                        ),
-                                    ))
+                                    direct_error!(GameError, "Already joined a table.")
                                 }
                             } else {
-                                Some((
-                                    AnswerTarget::Direct,
-                                    Answer::Error(DurakError::GameError(
-                                        "Player not found. Please call \"player name\".".into(),
-                                    )),
-                                ))
+                                direct_error!(
+                                    GameError,
+                                    "Player not found. Please call \"player name\"."
+                                )
                             }
                         } else {
-                            Some((
-                                AnswerTarget::Direct,
-                                Answer::Error(
-                                    DurakError::GameError("Unable to join table.".into()),
-                                ),
-                            ))
+                            direct_error!(GameError, "Unable to join table.")
                         }
                     }
-                    None => Some((
-                        AnswerTarget::Direct,
-                        Answer::Error(
-                            DurakError::GameError("Table not found.".into()),
-                        ),
-                    )),
+                    None => direct_error!(GameError, "Table not found."),
                 }
             }
             TableCommand::Leave => {
@@ -202,28 +185,13 @@ impl<T: GameRules + Clone + Send> Room<T> {
                             table.players.retain(|&x| x != *client);
                             None
                         } else {
-                            Some((
-                                AnswerTarget::Direct,
-                                Answer::Error(
-                                    DurakError::GameError("Table not found.".into()),
-                                ),
-                            ))
+                            direct_error!(GameError, "Table not found.")
                         }
                     } else {
-                        Some((
-                            AnswerTarget::Direct,
-                            Answer::Error(
-                                DurakError::GameError("No table joined.".into()),
-                            ),
-                        ))
+                        direct_error!(GameError, "No table joined.")
                     }
                 } else {
-                    Some((
-                        AnswerTarget::Direct,
-                        Answer::Error(DurakError::GameError(
-                            "Player not found. Please call \"player name\".".into(),
-                        )),
-                    ))
+                    direct_error!(GameError, "Player not found. Please call \"player name\".")
                 }
             }
             TableCommand::Chat(message) => {
@@ -236,28 +204,13 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                         AnswerTarget::List(table.players.clone()),
                                         Answer::Chat(*client, message),
                                     )),
-                                    None => Some((
-                                        AnswerTarget::Direct,
-                                        Answer::Error(
-                                            DurakError::GameError("Table not found.".into()),
-                                        ),
-                                    )),
+                                    None => direct_error!(GameError, "Table not found."),
                                 }
                             }
-                            None => Some((
-                                AnswerTarget::Direct,
-                                Answer::Error(
-                                    DurakError::GameError("No table joined yet.".into()),
-                                ),
-                            )),
+                            None => direct_error!(GameError, "No table joined yet."),
                         }
                     }
-                    None => Some((
-                        AnswerTarget::Direct,
-                        Answer::Error(
-                            DurakError::GameError("Player not found.".into()),
-                        ),
-                    )),
+                    None => direct_error!(GameError, "Player not found."),
                 }
             }
         }
@@ -291,36 +244,18 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                                     Answer::GameState(state.clone()),
                                                 ))
                                             }
-                                            None => Some((
-                                                AnswerTarget::Direct,
-                                                Answer::Error(DurakError::GameError(
-                                                    "Unable to start game.".into(),
-                                                )),
-                                            )),
+                                            None => {
+                                                direct_error!(GameError, "Unable to start game.")
+                                            }
                                         }
                                     }
-                                    None => Some((
-                                        AnswerTarget::Direct,
-                                        Answer::Error(
-                                            DurakError::GameError("Table not found.".into()),
-                                        ),
-                                    )),
+                                    None => direct_error!(GameError, "Table not found."),
                                 }
                             }
-                            None => Some((
-                                AnswerTarget::Direct,
-                                Answer::Error(
-                                    DurakError::GameError("No table joined.".into()),
-                                ),
-                            )),
+                            None => direct_error!(GameError, "No table joined."),
                         }
                     }
-                    None => Some((
-                        AnswerTarget::Direct,
-                        Answer::Error(
-                            DurakError::GameError("Player not found.".into()),
-                        ),
-                    )),
+                    None => direct_error!(GameError, "Player not found."),
                 }
             }
             GameCommand::State => {
@@ -335,36 +270,16 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                                 AnswerTarget::Direct,
                                                 Answer::GameState(state.clone()),
                                             )),
-                                            None => Some((
-                                                AnswerTarget::Direct,
-                                                Answer::Error(DurakError::GameError(
-                                                    "No game running.".into(),
-                                                )),
-                                            )),
+                                            None => direct_error!(GameError, "No game running."),
                                         }
                                     }
-                                    None => Some((
-                                        AnswerTarget::Direct,
-                                        Answer::Error(
-                                            DurakError::GameError("Table not found.".into()),
-                                        ),
-                                    )),
+                                    None => direct_error!(GameError, "Table not found."),
                                 }
                             }
-                            None => Some((
-                                AnswerTarget::Direct,
-                                Answer::Error(
-                                    DurakError::GameError("No table joined.".into()),
-                                ),
-                            )),
+                            None => direct_error!(GameError, "No table joined."),
                         }
                     }
-                    None => Some((
-                        AnswerTarget::Direct,
-                        Answer::Error(
-                            DurakError::GameError("Player not found.".into()),
-                        ),
-                    )),
+                    None => direct_error!(GameError, "Player not found."),
                 }
             }
         }
