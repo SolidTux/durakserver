@@ -2,6 +2,7 @@ use rand::random;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use network::*;
+use rules::*;
 
 pub type TableHash = u64;
 
@@ -12,13 +13,14 @@ pub struct Player {
     pub table: Option<TableHash>,
 }
 
-pub struct Room {
+pub struct Room<T: GameRules + Clone + Send> {
     players: HashMap<ClientHash, Player>,
-    tables: HashMap<TableHash, Table>,
+    tables: HashMap<TableHash, Table<T>>,
+    rules: T,
 }
 
-#[derive(Debug, Clone)]
-pub struct Table {
+#[derive(Clone)]
+pub struct Table<T: GameRules + Clone + Send> {
     pub name: String,
     pub players: Vec<ClientHash>,
     pub trump: Option<Suite>,
@@ -26,12 +28,13 @@ pub struct Table {
     pub min_players: usize,
     pub state: TableState,
     game_state: Option<GameState>,
+    rules: T,
 }
 
 #[derive(Debug, Clone)]
 pub struct GameState {
     player_cards: HashMap<ClientHash, HashSet<Card>>,
-    total_cards: HashSet<Card>,
+    total_cards: Vec<Card>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -85,19 +88,20 @@ impl fmt::Display for TableState {
     }
 }
 
-impl Room {
-    pub fn new() -> Room {
+impl<T: GameRules + Clone + Send> Room<T> {
+    pub fn new(rules: T) -> Room<T> {
         Room {
             players: HashMap::new(),
             tables: HashMap::new(),
+            rules: rules,
         }
     }
 
     pub fn handle_command(
         &mut self,
         client: &ClientHash,
-        command: Command,
-    ) -> Option<(AnswerTarget, Answer)> {
+        command: Command<T>,
+    ) -> Option<(AnswerTarget, Answer<T>)> {
         match command {
             Command::Player(PlayerCommand::Name(name)) => {
                 self.players.entry(*client).or_insert(Player::new()).name = name;
@@ -133,10 +137,13 @@ impl Room {
         &mut self,
         client: &ClientHash,
         command: TableCommand,
-    ) -> Option<(AnswerTarget, Answer)> {
+    ) -> Option<(AnswerTarget, Answer<T>)> {
         match command {
             TableCommand::New(name) => {
-                self.tables.insert(random(), Table::new(name));
+                self.tables.insert(
+                    random(),
+                    Table::new(name, self.rules.clone()),
+                );
                 None
             }
             TableCommand::List => Some((
@@ -260,7 +267,7 @@ impl Room {
         &mut self,
         client: &ClientHash,
         command: GameCommand,
-    ) -> Option<(AnswerTarget, Answer)> {
+    ) -> Option<(AnswerTarget, Answer<T>)> {
         match command {
             GameCommand::Start => {
                 match self.players.get(client) {
@@ -271,6 +278,10 @@ impl Room {
                                     Some(table) => {
                                         table.state = TableState::Game;
                                         table.game_state = Some(GameState::new());
+                                        if let Some(ref mut state) = table.game_state {
+                                            table.rules.apply(state, GameAction::DrawCards)
+                                        };
+                                        println!("{:?}", table.game_state);
                                         println!("{:?}", table.game_state);
                                         Some((
                                             AnswerTarget::Direct,
@@ -305,8 +316,8 @@ impl Room {
     }
 }
 
-impl Table {
-    pub fn new<S: Into<String>>(name: S) -> Table {
+impl<T: GameRules + Clone + Send> Table<T> {
+    pub fn new<S: Into<String>>(name: S, rules: T) -> Table<T> {
         Table {
             name: name.into(),
             players: Vec::new(),
@@ -315,13 +326,14 @@ impl Table {
             min_players: 2,
             state: TableState::Idle,
             game_state: None,
+            rules: rules,
         }
     }
 }
 
 impl GameState {
     pub fn new() -> GameState {
-        let mut cards = HashSet::new();
+        let mut cards = Vec::new();
         for suite in [Suite::Hearts, Suite::Diamonds, Suite::Clubs, Suite::Spades].into_iter() {
             for value in [
                 CardValue::Number6,
@@ -334,7 +346,7 @@ impl GameState {
                 CardValue::Ace,
             ].into_iter()
             {
-                cards.insert(Card {
+                cards.push(Card {
                     suite: suite.clone(),
                     value: value.clone(),
                 });

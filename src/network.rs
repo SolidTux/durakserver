@@ -12,6 +12,7 @@ use std::time;
 
 use rand::random;
 use game::*;
+use rules::*;
 
 pub type ClientHash = u64;
 
@@ -21,10 +22,10 @@ pub struct DuplexChannel<A, B> {
     rx: mpsc::Receiver<B>,
 }
 
-pub struct Server {
+pub struct Server<T: GameRules + Clone + Send> {
     listener: TcpListener,
-    channels: HashMap<ClientHash, DuplexChannel<Answer, Command>>,
-    room: Room,
+    channels: HashMap<ClientHash, DuplexChannel<Answer<T>, Command<T>>>,
+    room: Room<T>,
 }
 
 pub type Result<T> = result::Result<T, DurakError>;
@@ -39,19 +40,19 @@ pub enum DurakError {
     Unimplemented,
 }
 
-#[derive(Debug, Clone)]
-pub enum Command {
+#[derive(Clone)]
+pub enum Command<T: GameRules + Clone + Send> {
     Player(PlayerCommand),
     Table(TableCommand),
     Game(GameCommand),
-    Answer(Answer),
+    Answer(Answer<T>),
 }
 
-#[derive(Debug, Clone)]
-pub enum Answer {
+#[derive(Clone)]
+pub enum Answer<T: GameRules + Clone + Send> {
     PlayerList(HashMap<ClientHash, Player>),
     PlayerState(ClientHash, Player),
-    TableList(HashMap<TableHash, Table>),
+    TableList(HashMap<TableHash, Table<T>>),
     Error(DurakError),
     Chat(ClientHash, String),
 }
@@ -82,12 +83,17 @@ pub enum GameCommand {
     Start,
 }
 
-impl Server {
-    pub fn new<S: ToSocketAddrs>(address: S) -> Result<Server> {
+#[derive(Debug, Clone)]
+pub enum GameAction {
+    DrawCards,
+}
+
+impl<T: GameRules + Clone + Send + 'static> Server<T> {
+    pub fn new<S: ToSocketAddrs>(address: S, rules: T) -> Result<Server<T>> {
         Ok(Server {
             listener: TcpListener::bind(address)?,
             channels: HashMap::new(),
-            room: Room::new(),
+            room: Room::new(rules),
         })
     }
 
@@ -112,7 +118,6 @@ impl Server {
                         Ok(_) => {
                             match Command::parse(line) {
                                 Ok(cmd) => {
-                                    println!("send {:016X} {:?}", id, cmd);
                                     tx.send(cmd).unwrap();
                                 }
                                 Err(e) => {
@@ -249,8 +254,8 @@ impl<T: Send> From<mpsc::SendError<T>> for DurakError {
 }
 
 
-impl Command {
-    pub fn parse<S: Into<String>>(line: S) -> Result<Command> {
+impl<T: GameRules + Clone + Send> Command<T> {
+    pub fn parse<S: Into<String>>(line: S) -> Result<Command<T>> {
         let line: String = line.into().trim().into();
         let mut parts = line.splitn(2, ' ');
 
