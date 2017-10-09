@@ -23,7 +23,27 @@ impl GameRules for DefaultRules {
         let mut rng = thread_rng();
         match action {
             GameAction::DealCards => {
-                let mut cards = state.total_cards.clone();
+                let mut cards = Vec::new();
+                for suite in [Suite::Hearts, Suite::Diamonds, Suite::Clubs, Suite::Spades]
+                    .into_iter()
+                {
+                    for value in [
+                        CardValue::Number6,
+                        CardValue::Number7,
+                        CardValue::Number8,
+                        CardValue::Number9,
+                        CardValue::Number10,
+                        CardValue::Jack,
+                        CardValue::Queen,
+                        CardValue::Ace,
+                    ].into_iter()
+                    {
+                        cards.push(Card {
+                            suite: suite.clone(),
+                            value: value.clone(),
+                        });
+                    }
+                }
                 rng.shuffle(cards.as_mut_slice());
                 for &player in players {
                     state.player_cards.insert(*player, HashSet::new());
@@ -35,6 +55,7 @@ impl GameRules for DefaultRules {
                         );
                     }
                 }
+                state.card_stack = cards.clone();
             }
         }
     }

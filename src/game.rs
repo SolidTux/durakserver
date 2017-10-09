@@ -34,7 +34,7 @@ pub struct Table<T: GameRules + Clone + Send> {
 #[derive(Debug, Clone)]
 pub struct GameState {
     pub player_cards: HashMap<ClientHash, HashSet<Card>>,
-    pub total_cards: Vec<Card>,
+    pub card_stack: Vec<Card>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,8 +45,8 @@ pub enum TableState {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Card {
-    value: CardValue,
-    suite: Suite,
+    pub value: CardValue,
+    pub suite: Suite,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -336,28 +336,9 @@ impl<T: GameRules + Clone + Send> Table<T> {
 
 impl GameState {
     pub fn new() -> GameState {
-        let mut cards = Vec::new();
-        for suite in [Suite::Hearts, Suite::Diamonds, Suite::Clubs, Suite::Spades].into_iter() {
-            for value in [
-                CardValue::Number6,
-                CardValue::Number7,
-                CardValue::Number8,
-                CardValue::Number9,
-                CardValue::Number10,
-                CardValue::Jack,
-                CardValue::Queen,
-                CardValue::Ace,
-            ].into_iter()
-            {
-                cards.push(Card {
-                    suite: suite.clone(),
-                    value: value.clone(),
-                });
-            }
-        }
         GameState {
             player_cards: HashMap::new(),
-            total_cards: cards,
+            card_stack: Vec::new(),
         }
     }
 }
