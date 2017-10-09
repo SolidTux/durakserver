@@ -12,7 +12,7 @@ pub struct Player {
     pub table: Option<TableHash>,
 }
 
-pub struct Game {
+pub struct Room {
     players: HashMap<ClientHash, Player>,
     tables: HashMap<TableHash, Table>,
 }
@@ -80,9 +80,9 @@ impl fmt::Display for TableState {
     }
 }
 
-impl Game {
-    pub fn new() -> Game {
-        Game {
+impl Room {
+    pub fn new() -> Room {
+        Room {
             players: HashMap::new(),
             tables: HashMap::new(),
         }

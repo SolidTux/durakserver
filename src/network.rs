@@ -24,7 +24,7 @@ pub struct DuplexChannel<A, B> {
 pub struct Server {
     listener: TcpListener,
     channels: HashMap<ClientHash, DuplexChannel<Answer, Command>>,
-    game: Game,
+    room: Room,
 }
 
 pub type Result<T> = result::Result<T, DurakError>;
@@ -87,7 +87,7 @@ impl Server {
         Ok(Server {
             listener: TcpListener::bind(address)?,
             channels: HashMap::new(),
-            game: Game::new(),
+            room: Room::new(),
         })
     }
 
@@ -199,7 +199,7 @@ impl Server {
             for (clienthash, channel) in &self.channels {
                 match channel.try_recv() {
                     Ok(command) => {
-                        match self.game.handle_command(clienthash, command) {
+                        match self.room.handle_command(clienthash, command) {
                             Some((target, answer)) => {
                                 match target {
                                     AnswerTarget::Direct => {
