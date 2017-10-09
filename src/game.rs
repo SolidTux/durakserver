@@ -1,5 +1,5 @@
 use rand::random;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use network::*;
 
@@ -25,8 +25,13 @@ pub struct Table {
     pub max_players: usize,
     pub min_players: usize,
     pub state: TableState,
-    pub draw_stack: Vec<Card>,
-    pub table_stacks: Vec<(Card, Option<Card>)>,
+    game_state: Option<GameState>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GameState {
+    player_cards: HashMap<ClientHash, HashSet<Card>>,
+    total_cards: HashSet<Card>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,13 +40,13 @@ pub enum TableState {
     Game,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Card {
     value: CardValue,
     suite: Suite,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CardValue {
     Number6,
     Number7,
@@ -53,7 +58,7 @@ pub enum CardValue {
     Ace,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Suite {
     Hearts,
     Diamonds,
@@ -265,6 +270,8 @@ impl Room {
                                 match self.tables.get_mut(&tablehash) {
                                     Some(table) => {
                                         table.state = TableState::Game;
+                                        table.game_state = Some(GameState::new());
+                                        println!("{:?}", table.game_state);
                                         Some((
                                             AnswerTarget::Direct,
                                             Answer::Error(DurakError::Unimplemented),
@@ -307,8 +314,35 @@ impl Table {
             max_players: 6,
             min_players: 2,
             state: TableState::Idle,
-            draw_stack: Vec::new(),
-            table_stacks: Vec::new(),
+            game_state: None,
+        }
+    }
+}
+
+impl GameState {
+    pub fn new() -> GameState {
+        let mut cards = HashSet::new();
+        for suite in [Suite::Hearts, Suite::Diamonds, Suite::Clubs, Suite::Spades].into_iter() {
+            for value in [
+                CardValue::Number6,
+                CardValue::Number7,
+                CardValue::Number8,
+                CardValue::Number9,
+                CardValue::Number10,
+                CardValue::Jack,
+                CardValue::Queen,
+                CardValue::Ace,
+            ].into_iter()
+            {
+                cards.insert(Card {
+                    suite: suite.clone(),
+                    value: value.clone(),
+                });
+            }
+        }
+        GameState {
+            player_cards: HashMap::new(),
+            total_cards: cards,
         }
     }
 }

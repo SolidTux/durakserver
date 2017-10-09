@@ -169,8 +169,9 @@ impl Server {
                                         table.name
                                     ))
                                     .unwrap();
-                                writer.flush().unwrap();
                             }
+                            writer.write_fmt(format_args!("\n")).unwrap();
+                            let _ = writer.flush();
                         }
                         Answer::Error(error) => {
                             writer
