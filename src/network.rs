@@ -56,6 +56,11 @@ pub enum Answer {
     Chat(ClientHash, String),
 }
 
+pub enum AnswerTarget {
+    Direct,
+    List(Vec<ClientHash>),
+}
+
 #[derive(Debug, Clone)]
 pub enum PlayerCommand {
     Name(String),
@@ -74,7 +79,7 @@ pub enum TableCommand {
 
 #[derive(Debug, Clone)]
 pub enum GameCommand {
-    Start
+    Start,
 }
 
 impl Server {
@@ -155,11 +160,12 @@ impl Server {
                             for (tablehash, table) in list {
                                 writer
                                     .write_fmt(format_args!(
-                                        "\t{:016X} {} {} {} {}\n",
+                                        "\t{:016X} {} {} {} {} {}\n",
                                         tablehash,
                                         table.players.len(),
                                         table.min_players,
                                         table.max_players,
+                                        table.state,
                                         table.name
                                     ))
                                     .unwrap();
@@ -194,11 +200,21 @@ impl Server {
                 match channel.try_recv() {
                     Ok(command) => {
                         match self.game.handle_command(clienthash, command) {
-                            Some((targets, answer)) => {
-                                for target in targets {
-                                    match self.channels.get(&target) {
-                                        Some(ch) => ch.send(answer.clone()).unwrap(),
-                                        None => {}
+                            Some((target, answer)) => {
+                                match target {
+                                    AnswerTarget::Direct => {
+                                        match self.channels.get(&clienthash) {
+                                            Some(ch) => ch.send(answer.clone()).unwrap(),
+                                            None => {}
+                                        }
+                                    }
+                                    AnswerTarget::List(targets) => {
+                                        for target in targets {
+                                            match self.channels.get(&target) {
+                                                Some(ch) => ch.send(answer.clone()).unwrap(),
+                                                None => {}
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -257,9 +273,7 @@ impl Command {
             Some("game") => {
                 match parts.next() {
                     Some(tail) => Ok(Command::Game(GameCommand::parse(tail)?)),
-                    None => Err(DurakError::ParserError(
-                        "No game command specified.".into(),
-                    )),
+                    None => Err(DurakError::ParserError("No game command specified.".into())),
                 }
             }
             Some(x) => Err(DurakError::ParserError(format!("Unknown command {}.", x))),

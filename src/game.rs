@@ -1,5 +1,6 @@
 use rand::random;
 use std::collections::HashMap;
+use std::fmt;
 use network::*;
 
 pub type TableHash = u64;
@@ -70,6 +71,15 @@ impl Player {
     }
 }
 
+impl fmt::Display for TableState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &TableState::Idle => write!(f, "Idle"),
+            &TableState::Game => write!(f, "Game"),
+        }
+    }
+}
+
 impl Game {
     pub fn new() -> Game {
         Game {
@@ -82,23 +92,26 @@ impl Game {
         &mut self,
         client: &ClientHash,
         command: Command,
-    ) -> Option<(Vec<ClientHash>, Answer)> {
+    ) -> Option<(AnswerTarget, Answer)> {
         match command {
             Command::Player(PlayerCommand::Name(name)) => {
                 self.players.entry(*client).or_insert(Player::new()).name = name;
                 None
             }
             Command::Player(PlayerCommand::List) => {
-                Some((vec![*client], Answer::PlayerList(self.players.clone())))
+                Some((
+                    AnswerTarget::Direct,
+                    Answer::PlayerList(self.players.clone()),
+                ))
             }
             Command::Player(PlayerCommand::State) => {
                 match self.players.get(client) {
                     Some(player) => Some((
-                        vec![*client],
+                        AnswerTarget::Direct,
                         Answer::PlayerState(*client, player.clone()),
                     )),
                     None => Some((
-                        vec![*client],
+                        AnswerTarget::Direct,
                         Answer::Error(
                             DurakError::GameError("Player not found.".into()),
                         ),
@@ -107,7 +120,7 @@ impl Game {
             }
             Command::Table(tablecommand) => self.handle_table_command(client, tablecommand),
             Command::Game(gamecommand) => self.handle_game_command(client, gamecommand),
-            Command::Answer(answer) => Some((vec![*client], answer)),
+            Command::Answer(answer) => Some((AnswerTarget::Direct, answer)),
         }
     }
 
@@ -115,13 +128,16 @@ impl Game {
         &mut self,
         client: &ClientHash,
         command: TableCommand,
-    ) -> Option<(Vec<ClientHash>, Answer)> {
+    ) -> Option<(AnswerTarget, Answer)> {
         match command {
             TableCommand::New(name) => {
                 self.tables.insert(random(), Table::new(name));
                 None
             }
-            TableCommand::List => Some((vec![*client], Answer::TableList(self.tables.clone()))),
+            TableCommand::List => Some((
+                AnswerTarget::Direct,
+                Answer::TableList(self.tables.clone()),
+            )),
             TableCommand::Join(tablehash) => {
                 match self.tables.get_mut(&tablehash) {
                     Some(table) => {
@@ -135,7 +151,7 @@ impl Game {
                                     None
                                 } else {
                                     Some((
-                                        vec![*client],
+                                        AnswerTarget::Direct,
                                         Answer::Error(
                                             DurakError::GameError("Already joined a table.".into()),
                                         ),
@@ -143,7 +159,7 @@ impl Game {
                                 }
                             } else {
                                 Some((
-                                    vec![*client],
+                                    AnswerTarget::Direct,
                                     Answer::Error(DurakError::GameError(
                                         "Player not found. Please call \"player name\".".into(),
                                     )),
@@ -151,7 +167,7 @@ impl Game {
                             }
                         } else {
                             Some((
-                                vec![*client],
+                                AnswerTarget::Direct,
                                 Answer::Error(
                                     DurakError::GameError("Unable to join table.".into()),
                                 ),
@@ -159,7 +175,7 @@ impl Game {
                         }
                     }
                     None => Some((
-                        vec![*client],
+                        AnswerTarget::Direct,
                         Answer::Error(
                             DurakError::GameError("Table not found.".into()),
                         ),
@@ -175,7 +191,7 @@ impl Game {
                             None
                         } else {
                             Some((
-                                vec![*client],
+                                AnswerTarget::Direct,
                                 Answer::Error(
                                     DurakError::GameError("Table not found.".into()),
                                 ),
@@ -183,7 +199,7 @@ impl Game {
                         }
                     } else {
                         Some((
-                            vec![*client],
+                            AnswerTarget::Direct,
                             Answer::Error(
                                 DurakError::GameError("No table joined.".into()),
                             ),
@@ -191,7 +207,7 @@ impl Game {
                     }
                 } else {
                     Some((
-                        vec![*client],
+                        AnswerTarget::Direct,
                         Answer::Error(DurakError::GameError(
                             "Player not found. Please call \"player name\".".into(),
                         )),
@@ -205,11 +221,11 @@ impl Game {
                             Some(tablehash) => {
                                 match self.tables.get(&tablehash) {
                                     Some(table) => Some((
-                                        table.players.clone(),
+                                        AnswerTarget::List(table.players.clone()),
                                         Answer::Chat(*client, message),
                                     )),
                                     None => Some((
-                                        vec![*client],
+                                        AnswerTarget::Direct,
                                         Answer::Error(
                                             DurakError::GameError("Table not found.".into()),
                                         ),
@@ -217,7 +233,7 @@ impl Game {
                                 }
                             }
                             None => Some((
-                                vec![*client],
+                                AnswerTarget::Direct,
                                 Answer::Error(
                                     DurakError::GameError("No table joined yet.".into()),
                                 ),
@@ -225,7 +241,7 @@ impl Game {
                         }
                     }
                     None => Some((
-                        vec![*client],
+                        AnswerTarget::Direct,
                         Answer::Error(
                             DurakError::GameError("Player not found.".into()),
                         ),
@@ -235,20 +251,49 @@ impl Game {
         }
     }
 
-    fn handle_game_command (
+    fn handle_game_command(
         &mut self,
         client: &ClientHash,
         command: GameCommand,
-    ) -> Option<(Vec<ClientHash>, Answer)> {
+    ) -> Option<(AnswerTarget, Answer)> {
         match command {
-            GameCommand::Start =>  {
-                Some((
-                    vec![*client],
-                    Answer::Error(
-                        DurakError::Unimplemented
-                    )
-                ))
-            },
+            GameCommand::Start => {
+                match self.players.get(client) {
+                    Some(player) => {
+                        match player.table {
+                            Some(tablehash) => {
+                                match self.tables.get_mut(&tablehash) {
+                                    Some(table) => {
+                                        table.state = TableState::Game;
+                                        Some((
+                                            AnswerTarget::Direct,
+                                            Answer::Error(DurakError::Unimplemented),
+                                        ))
+                                    }
+                                    None => Some((
+                                        AnswerTarget::Direct,
+                                        Answer::Error(
+                                            DurakError::GameError("Table not found.".into()),
+                                        ),
+                                    )),
+                                }
+                            }
+                            None => Some((
+                                AnswerTarget::Direct,
+                                Answer::Error(
+                                    DurakError::GameError("No table joined.".into()),
+                                ),
+                            )),
+                        }
+                    }
+                    None => Some((
+                        AnswerTarget::Direct,
+                        Answer::Error(
+                            DurakError::GameError("Player not found.".into()),
+                        ),
+                    )),
+                }
+            }
         }
     }
 }
