@@ -55,6 +55,7 @@ pub enum Answer<T: GameRules + Clone + Send> {
     TableList(HashMap<TableHash, Table<T>>),
     Error(DurakError),
     Chat(ClientHash, String),
+    GameState(GameState),
 }
 
 pub enum AnswerTarget {
@@ -81,6 +82,7 @@ pub enum TableCommand {
 #[derive(Debug, Clone)]
 pub enum GameCommand {
     Start,
+    State,
 }
 
 #[derive(Debug, Clone)]
@@ -141,7 +143,6 @@ impl<T: GameRules + Clone + Send + 'static> Server<T> {
                                 writer
                                     .write_fmt(format_args!("\t{:016X} {}\n", hash, player.name))
                                     .unwrap();
-                                writer.flush().unwrap();
                             }
                         }
                         Answer::PlayerState(hash, player) => {
@@ -159,7 +160,6 @@ impl<T: GameRules + Clone + Send + 'static> Server<T> {
                                 }
                                 None => {}
                             }
-                            writer.flush().unwrap();
                         }
                         Answer::TableList(list) => {
                             for (tablehash, table) in list {
@@ -176,21 +176,39 @@ impl<T: GameRules + Clone + Send + 'static> Server<T> {
                                     .unwrap();
                             }
                             writer.write_fmt(format_args!("\n")).unwrap();
-                            let _ = writer.flush();
                         }
                         Answer::Error(error) => {
                             writer
                                 .write_fmt(format_args!("ERROR {}\n", error.to_string()))
                                 .unwrap();
-                            writer.flush().unwrap();
                         }
                         Answer::Chat(sender, message) => {
                             writer
                                 .write_fmt(format_args!("chat {:016X} {}\n", sender, message))
                                 .unwrap();
-                            writer.flush().unwrap();
+                        }
+                        Answer::GameState(gamestate) => {
+                            writer
+                                .write_fmt(format_args!(
+                                    "cards {}\n",
+                                    gamestate.player_cards.get(&id).unwrap().iter().fold(
+                                        String::new(),
+                                        |acc, x| {
+                                            if acc.len() == 0 {
+                                                format!("{}", x)
+                                            } else {
+                                                format!("{} {}", acc, x)
+                                            }
+                                        },
+                                    )
+                                ))
+                                .unwrap();
+                            writer
+                                .write_fmt(format_args!("game {}\n", gamestate))
+                                .unwrap();
                         }
                     }
+                    let _ = writer.flush();
                 }
             });
         });

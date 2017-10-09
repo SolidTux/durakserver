@@ -278,18 +278,70 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                     Some(table) => {
                                         table.state = TableState::Game;
                                         table.game_state = Some(GameState::new());
-                                        if let Some(ref mut state) = table.game_state {
-                                            table.rules.apply(
-                                                state,
-                                                &table.players,
-                                                GameAction::DealCards,
-                                            )
-                                        };
-                                        println!("{:?}", table.game_state);
-                                        Some((
-                                            AnswerTarget::Direct,
-                                            Answer::Error(DurakError::Unimplemented),
-                                        ))
+                                        match table.game_state {
+                                            Some(ref mut state) => {
+                                                table.rules.apply(
+                                                    state,
+                                                    &table.players,
+                                                    GameAction::DealCards,
+                                                );
+                                                println!("{:?}", state);
+                                                Some((
+                                                    AnswerTarget::List(table.players.clone()),
+                                                    Answer::GameState(state.clone()),
+                                                ))
+                                            }
+                                            None => Some((
+                                                AnswerTarget::Direct,
+                                                Answer::Error(DurakError::GameError(
+                                                    "Unable to start game.".into(),
+                                                )),
+                                            )),
+                                        }
+                                    }
+                                    None => Some((
+                                        AnswerTarget::Direct,
+                                        Answer::Error(
+                                            DurakError::GameError("Table not found.".into()),
+                                        ),
+                                    )),
+                                }
+                            }
+                            None => Some((
+                                AnswerTarget::Direct,
+                                Answer::Error(
+                                    DurakError::GameError("No table joined.".into()),
+                                ),
+                            )),
+                        }
+                    }
+                    None => Some((
+                        AnswerTarget::Direct,
+                        Answer::Error(
+                            DurakError::GameError("Player not found.".into()),
+                        ),
+                    )),
+                }
+            }
+            GameCommand::State => {
+                match self.players.get(client) {
+                    Some(player) => {
+                        match player.table {
+                            Some(tablehash) => {
+                                match self.tables.get_mut(&tablehash) {
+                                    Some(table) => {
+                                        match table.game_state {
+                                            Some(ref state) => Some((
+                                                AnswerTarget::Direct,
+                                                Answer::GameState(state.clone()),
+                                            )),
+                                            None => Some((
+                                                AnswerTarget::Direct,
+                                                Answer::Error(DurakError::GameError(
+                                                    "No game running.".into(),
+                                                )),
+                                            )),
+                                        }
                                     }
                                     None => Some((
                                         AnswerTarget::Direct,
@@ -343,9 +395,32 @@ impl GameState {
     }
 }
 
+impl fmt::Display for GameState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.card_stack.last().unwrap())
+    }
+}
+
+impl fmt::Display for Card {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.value, self.suite)
+    }
+}
+
 impl fmt::Debug for Card {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}{:?}", self.value, self.suite)
+    }
+}
+
+impl fmt::Display for Suite {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Suite::Diamonds => write!(f, "1"),
+            &Suite::Hearts => write!(f, "2"),
+            &Suite::Spades => write!(f, "3"),
+            &Suite::Clubs => write!(f, "4"),
+        }
     }
 }
 
@@ -357,6 +432,12 @@ impl fmt::Debug for Suite {
             &Suite::Clubs => write!(f, "♣"),
             &Suite::Spades => write!(f, "♠"),
         }
+    }
+}
+
+impl fmt::Display for CardValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
