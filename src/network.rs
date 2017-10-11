@@ -391,6 +391,7 @@ impl GameCommand {
 
         match parts.next() {
             Some("start") => Ok(GameCommand::Start),
+            Some("state") => Ok(GameCommand::State),
             Some(x) => Err(durak_error!(
                 ParserError,
                 format!("Unknown game command {}.", x)

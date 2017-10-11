@@ -40,6 +40,7 @@ pub struct Table<T: GameRules + Clone + Send> {
 pub struct GameState {
     pub player_cards: HashMap<ClientHash, HashSet<Card>>,
     pub card_stack: Vec<Card>,
+    pub trump: Option<Suite>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -306,13 +307,22 @@ impl GameState {
         GameState {
             player_cards: HashMap::new(),
             card_stack: Vec::new(),
+            trump: None,
         }
     }
 }
 
 impl fmt::Display for GameState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.card_stack.last().unwrap())
+        match self.card_stack.last() {
+            Some(card) => write!(f, "{}", card),
+            None => {
+                match self.trump {
+                    Some(ref suite) => write!(f, "-{}", suite),
+                    None => write!(f, "--"),
+                }
+            }
+        }
     }
 }
 

@@ -56,6 +56,7 @@ impl GameRules for DefaultRules {
                     }
                 }
                 state.card_stack = cards.clone();
+                state.trump = state.card_stack.last().map(|x| x.suite.clone());
             }
         }
     }
