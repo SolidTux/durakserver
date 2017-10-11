@@ -363,7 +363,7 @@ impl fmt::Debug for CardValue {
             &CardValue::Number7 => write!(f, "7"),
             &CardValue::Number8 => write!(f, "8"),
             &CardValue::Number9 => write!(f, "9"),
-            &CardValue::Number10 => write!(f, "10"),
+            &CardValue::Number10 => write!(f, "0"),
             &CardValue::Jack => write!(f, "J"),
             &CardValue::Queen => write!(f, "Q"),
             &CardValue::Ace => write!(f, "A"),
