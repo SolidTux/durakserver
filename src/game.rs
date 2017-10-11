@@ -230,24 +230,31 @@ impl<T: GameRules + Clone + Send> Room<T> {
                             Some(tablehash) => {
                                 match self.tables.get_mut(&tablehash) {
                                     Some(table) => {
-                                        table.state = TableState::Game;
-                                        table.game_state = Some(GameState::new());
-                                        match table.game_state {
-                                            Some(ref mut state) => {
-                                                table.rules.apply(
-                                                    state,
-                                                    &table.players,
-                                                    GameAction::DealCards,
-                                                );
-                                                println!("{:?}", state);
-                                                Some((
-                                                    AnswerTarget::List(table.players.clone()),
-                                                    Answer::GameState(state.clone()),
-                                                ))
+                                        if table.players.len() >= table.min_players {
+                                            table.state = TableState::Game;
+                                            table.game_state = Some(GameState::new());
+                                            match table.game_state {
+                                                Some(ref mut state) => {
+                                                    table.rules.apply(
+                                                        state,
+                                                        &table.players,
+                                                        GameAction::DealCards,
+                                                    );
+                                                    println!("{:?}", state);
+                                                    Some((
+                                                        AnswerTarget::List(table.players.clone()),
+                                                        Answer::GameState(state.clone()),
+                                                    ))
+                                                }
+                                                None => {
+                                                    direct_error!(
+                                                        GameError,
+                                                        "Unable to start game."
+                                                    )
+                                                }
                                             }
-                                            None => {
-                                                direct_error!(GameError, "Unable to start game.")
-                                            }
+                                        } else {
+                                            direct_error!(GameError, "Not enough players.")
                                         }
                                     }
                                     None => direct_error!(GameError, "Table not found."),
