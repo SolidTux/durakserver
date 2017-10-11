@@ -5,3 +5,11 @@ authors = ["Daniel Hauck <mail@dhermit.de>"]
 
 [dependencies]
 rand = "0.3"
+
+[lib]
+name = "durak"
+path = "src/lib.rs"
+
+[[bin]]
+name = "durakserver"
+path = "src/main.rs"
