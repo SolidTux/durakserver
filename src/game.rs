@@ -9,6 +9,15 @@ macro_rules! direct_error {
         Answer::Error(DurakError::new(DurakErrorType::$t, $x)))));
 }
 
+macro_rules! rule_result {
+    ($x:expr) => (
+        match $x {
+            Ok(()) => {},
+            Err(e) => return Some((AnswerTarget::Direct, Answer::Error(e))),
+        }
+    );
+}
+
 pub type TableHash = u64;
 
 #[derive(Debug, Clone)]
@@ -31,7 +40,6 @@ pub struct Table<T: GameRules + Clone + Send> {
     pub trump: Option<Suite>,
     pub max_players: usize,
     pub min_players: usize,
-    pub state: TableState,
     game_state: Option<GameState>,
     rules: T,
 }
@@ -154,7 +162,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
             TableCommand::Join(tablehash) => {
                 match self.tables.get_mut(&tablehash) {
                     Some(table) => {
-                        if (table.state == TableState::Idle) &&
+                        if (table.game_state.is_some()) &&
                             (table.players.len() < table.max_players)
                         {
                             if let Some(player) = self.players.get_mut(client) {
@@ -231,30 +239,56 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                 match self.tables.get_mut(&tablehash) {
                                     Some(table) => {
                                         if table.players.len() >= table.min_players {
-                                            table.state = TableState::Game;
-                                            table.game_state = Some(GameState::new());
                                             match table.game_state {
-                                                Some(ref mut state) => {
-                                                    table.rules.apply(
-                                                        state,
+                                                None => {
+                                                    let mut state = GameState::new();
+                                                    rule_result!(table.rules.apply(
+                                                        &mut state,
                                                         &table.players,
                                                         GameAction::DealCards,
-                                                    );
+                                                    ));
                                                     println!("{:?}", state);
                                                     Some((
                                                         AnswerTarget::List(table.players.clone()),
-                                                        Answer::GameState(state.clone()),
+                                                        Answer::GameState(
+                                                            table
+                                                                .clone()
+                                                                .game_state
+                                                                .unwrap()
+                                                                .clone(),
+                                                        ),
                                                     ))
                                                 }
-                                                None => {
+                                                Some(_) => {
                                                     direct_error!(
                                                         GameError,
-                                                        "Unable to start game."
+                                                        "Game already started."
                                                     )
                                                 }
                                             }
                                         } else {
                                             direct_error!(GameError, "Not enough players.")
+                                        }
+                                    }
+                                    None => direct_error!(GameError, "Table not found."),
+                                }
+                            }
+                            None => direct_error!(GameError, "No table joined."),
+                        }
+                    }
+                    None => direct_error!(GameError, "Player not found."),
+                }
+            }
+            GameCommand::Action(action) => {
+                match self.players.get(client) {
+                    Some(player) => {
+                        match player.table {
+                            Some(tablehash) => {
+                                match self.tables.get_mut(&tablehash) {
+                                    Some(table) => {
+                                        match table.game_state {
+                                            Some(ref mut state) => direct_error!(Unimplemented, ""),
+                                            None => direct_error!(GameError, "No game running."),
                                         }
                                     }
                                     None => direct_error!(GameError, "Table not found."),
@@ -302,9 +336,15 @@ impl<T: GameRules + Clone + Send> Table<T> {
             trump: None,
             max_players: 6,
             min_players: 2,
-            state: TableState::Idle,
             game_state: None,
             rules: rules,
+        }
+    }
+
+    pub fn get_state(&self) -> String {
+        match self.game_state {
+            Some(_) => "Game".into(),
+            None => "Idle".into(),
         }
     }
 }
@@ -385,5 +425,11 @@ impl fmt::Debug for CardValue {
             &CardValue::Queen => write!(f, "Q"),
             &CardValue::Ace => write!(f, "A"),
         }
+    }
+}
+
+impl Card {
+    pub fn from_string<T: Into<String>>(s: T) -> Option<Card> {
+        unimplemented!();
     }
 }

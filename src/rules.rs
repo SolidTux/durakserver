@@ -1,10 +1,15 @@
-use game::*;
 use network::*;
+use game::*;
 use std::collections::HashSet;
 use rand::{thread_rng, Rng};
 
+// TODO import
+macro_rules! durak_error {
+    ($t:ident, $x:expr) => (DurakError::new(DurakErrorType::$t, $x))
+}
+
 pub trait GameRules {
-    fn apply(&self, &mut GameState, &Vec<ClientHash>, GameAction);
+    fn apply(&self, &mut GameState, &Vec<ClientHash>, GameAction) -> Result<()>;
 }
 
 #[derive(Clone)]
@@ -19,7 +24,12 @@ impl DefaultRules {
 }
 
 impl GameRules for DefaultRules {
-    fn apply(&self, state: &mut GameState, players: &Vec<ClientHash>, action: GameAction) {
+    fn apply(
+        &self,
+        state: &mut GameState,
+        players: &Vec<ClientHash>,
+        action: GameAction,
+    ) -> Result<()> {
         let mut rng = thread_rng();
         match action {
             GameAction::DealCards => {
@@ -57,7 +67,9 @@ impl GameRules for DefaultRules {
                 }
                 state.card_stack = cards.clone();
                 state.trump = state.card_stack.last().map(|x| x.suite.clone());
+                Ok(())
             }
+            GameAction::PutCard(card) => Err(durak_error!(Unimplemented, "")),
         }
     }
 }

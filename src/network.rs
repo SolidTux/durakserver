@@ -93,11 +93,13 @@ pub enum TableCommand {
 pub enum GameCommand {
     Start,
     State,
+    Action(GameAction),
 }
 
 #[derive(Debug, Clone)]
 pub enum GameAction {
     DealCards,
+    PutCard(Card),
 }
 
 impl<T: GameRules + Clone + Send + 'static> Server<T> {
@@ -180,7 +182,7 @@ impl<T: GameRules + Clone + Send + 'static> Server<T> {
                                         table.players.len(),
                                         table.min_players,
                                         table.max_players,
-                                        table.state,
+                                        table.get_state(),
                                         table.name
                                     ))
                                     .unwrap();
@@ -392,6 +394,17 @@ impl GameCommand {
         match parts.next() {
             Some("start") => Ok(GameCommand::Start),
             Some("state") => Ok(GameCommand::State),
+            Some("put") => {
+                match parts.next() {
+                    Some(tail) => {
+                        match Card::from_string(tail) {
+                            Some(card) => Ok(GameCommand::Action(GameAction::PutCard(card))),
+                            None => Err(durak_error!(ParserError, "Unable to parse card.")),
+                        }
+                    }
+                    None => Err(durak_error!(ParserError, "No card specified.")),
+                }
+            }
             Some(x) => Err(durak_error!(
                 ParserError,
                 format!("Unknown game command {}.", x)
