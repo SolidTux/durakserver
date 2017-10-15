@@ -1,6 +1,7 @@
 use rand::random;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::str::FromStr;
 use network::*;
 use rules::*;
 
@@ -9,13 +10,9 @@ macro_rules! direct_error {
         Answer::Error(DurakError::new(DurakErrorType::$t, $x)))));
 }
 
-macro_rules! rule_result {
-    ($x:expr) => (
-        match $x {
-            Ok(()) => {},
-            Err(e) => return Some((AnswerTarget::Direct, Answer::Error(e))),
-        }
-    );
+// TODO import
+macro_rules! durak_error {
+    ($t:ident, $x:expr) => (DurakError::new(DurakErrorType::$t, $x))
 }
 
 pub type TableHash = u64;
@@ -49,6 +46,7 @@ pub struct GameState {
     pub player_cards: HashMap<ClientHash, HashSet<Card>>,
     pub card_stack: Vec<Card>,
     pub trump: Option<Suite>,
+    pub target_player: Option<ClientHash>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +70,7 @@ pub enum CardValue {
     Number10,
     Jack,
     Queen,
+    King,
     Ace,
 }
 
@@ -162,7 +161,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
             TableCommand::Join(tablehash) => {
                 match self.tables.get_mut(&tablehash) {
                     Some(table) => {
-                        if (table.game_state.is_some()) &&
+                        if (table.game_state.is_none()) &&
                             (table.players.len() < table.max_players)
                         {
                             if let Some(player) = self.players.get_mut(client) {
@@ -242,22 +241,24 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                             match table.game_state {
                                                 None => {
                                                     let mut state = GameState::new();
-                                                    rule_result!(table.rules.apply(
+                                                    match table.rules.apply(
                                                         &mut state,
                                                         &table.players,
                                                         GameAction::DealCards,
-                                                    ));
-                                                    println!("{:?}", state);
-                                                    Some((
-                                                        AnswerTarget::List(table.players.clone()),
-                                                        Answer::GameState(
-                                                            table
-                                                                .clone()
-                                                                .game_state
-                                                                .unwrap()
-                                                                .clone(),
-                                                        ),
-                                                    ))
+                                                    ) {
+                                                        Ok(new_state) => Some((
+                                                            AnswerTarget::List(
+                                                                table.players.clone(),
+                                                            ),
+                                                            Answer::GameState(
+                                                                new_state.clone(),
+                                                            ),
+                                                        )),
+                                                        Err(e) => Some((
+                                                            AnswerTarget::Direct,
+                                                            Answer::Error(e),
+                                                        )),
+                                                    }
                                                 }
                                                 Some(_) => {
                                                     direct_error!(
@@ -287,7 +288,24 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                 match self.tables.get_mut(&tablehash) {
                                     Some(table) => {
                                         match table.game_state {
-                                            Some(ref mut state) => direct_error!(Unimplemented, ""),
+                                            Some(ref mut state) => {
+                                                match table.rules.apply(
+                                                    state,
+                                                    &table.players,
+                                                    action,
+                                                ) {
+                                                    Ok(new_state) => Some((
+                                                        AnswerTarget::List(
+                                                            table.players.clone(),
+                                                        ),
+                                                        Answer::GameState(new_state),
+                                                    )),
+                                                    Err(e) => Some((
+                                                        AnswerTarget::Direct,
+                                                        Answer::Error(e),
+                                                    )),
+                                                }
+                                            }
                                             None => direct_error!(GameError, "No game running."),
                                         }
                                     }
@@ -355,6 +373,7 @@ impl GameState {
             player_cards: HashMap::new(),
             card_stack: Vec::new(),
             trump: None,
+            target_player: None,
         }
     }
 }
@@ -423,13 +442,41 @@ impl fmt::Debug for CardValue {
             &CardValue::Number10 => write!(f, "0"),
             &CardValue::Jack => write!(f, "J"),
             &CardValue::Queen => write!(f, "Q"),
+            &CardValue::King => write!(f, "K"),
             &CardValue::Ace => write!(f, "A"),
         }
     }
 }
 
-impl Card {
-    pub fn from_string<T: Into<String>>(s: T) -> Option<Card> {
-        unimplemented!();
+impl FromStr for Card {
+    type Err = DurakError;
+    fn from_str(s: &str) -> Result<Card> {
+        let mut chars = s.chars();
+        let value = match chars.next() {
+            Some('6') => CardValue::Number6,
+            Some('7') => CardValue::Number7,
+            Some('8') => CardValue::Number8,
+            Some('9') => CardValue::Number9,
+            Some('0') => CardValue::Number10,
+            Some('J') => CardValue::Jack,
+            Some('Q') => CardValue::Queen,
+            Some('K') => CardValue::King,
+            Some('A') => CardValue::Ace,
+            Some(_) => return Err(durak_error!(ParserError, "Invalid card value specified.")),
+            None => return Err(durak_error!(ParserError, "No card value specified.")),
+        };
+        let suite = match chars.next() {
+            Some('1') => Suite::Diamonds,
+            Some('2') => Suite::Hearts,
+            Some('3') => Suite::Spades,
+            Some('4') => Suite::Clubs,
+            Some(_) => return Err(durak_error!(ParserError, "Invalid suite specified.")),
+            None => return Err(durak_error!(ParserError, "No suite specified.")),
+        };
+
+        Ok(Card {
+            value: value,
+            suite: suite,
+        })
     }
 }

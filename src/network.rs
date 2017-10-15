@@ -396,12 +396,7 @@ impl GameCommand {
             Some("state") => Ok(GameCommand::State),
             Some("put") => {
                 match parts.next() {
-                    Some(tail) => {
-                        match Card::from_string(tail) {
-                            Some(card) => Ok(GameCommand::Action(GameAction::PutCard(card))),
-                            None => Err(durak_error!(ParserError, "Unable to parse card.")),
-                        }
-                    }
+                    Some(tail) => Ok(GameCommand::Action(GameAction::PutCard(tail.parse()?))),
                     None => Err(durak_error!(ParserError, "No card specified.")),
                 }
             }

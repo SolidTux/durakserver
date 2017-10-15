@@ -9,7 +9,7 @@ macro_rules! durak_error {
 }
 
 pub trait GameRules {
-    fn apply(&self, &mut GameState, &Vec<ClientHash>, GameAction) -> Result<()>;
+    fn apply(&self, &mut GameState, &Vec<ClientHash>, GameAction) -> Result<GameState>;
 }
 
 #[derive(Clone)]
@@ -29,7 +29,7 @@ impl GameRules for DefaultRules {
         state: &mut GameState,
         players: &Vec<ClientHash>,
         action: GameAction,
-    ) -> Result<()> {
+    ) -> Result<GameState> {
         let mut rng = thread_rng();
         match action {
             GameAction::DealCards => {
@@ -67,7 +67,7 @@ impl GameRules for DefaultRules {
                 }
                 state.card_stack = cards.clone();
                 state.trump = state.card_stack.last().map(|x| x.suite.clone());
-                Ok(())
+                Ok(state.clone())
             }
             GameAction::PutCard(card) => Err(durak_error!(Unimplemented, "")),
         }
