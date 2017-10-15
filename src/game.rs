@@ -30,7 +30,7 @@ pub struct Room<T: GameRules + Clone + Send> {
     rules: T,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Table<T: GameRules + Clone + Send> {
     pub name: String,
     pub players: Vec<ClientHash>,
@@ -246,14 +246,15 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                                         &table.players,
                                                         GameAction::DealCards,
                                                     ) {
-                                                        Ok(new_state) => Some((
-                                                            AnswerTarget::List(
-                                                                table.players.clone(),
-                                                            ),
-                                                            Answer::GameState(
-                                                                new_state.clone(),
-                                                            ),
-                                                        )),
+                                                        Ok(new_state) => {
+                                                            table.game_state = Some(state.clone());
+                                                            Some((
+                                                                AnswerTarget::List(
+                                                                    table.players.clone(),
+                                                                ),
+                                                                Answer::GameState(new_state.clone()),
+                                                            ))
+                                                        }
                                                         Err(e) => Some((
                                                             AnswerTarget::Direct,
                                                             Answer::Error(e),

@@ -12,7 +12,7 @@ pub trait GameRules {
     fn apply(&self, &mut GameState, &Vec<ClientHash>, GameAction) -> Result<GameState>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DefaultRules {
     cards_per_player: usize,
 }
@@ -30,6 +30,7 @@ impl GameRules for DefaultRules {
         players: &Vec<ClientHash>,
         action: GameAction,
     ) -> Result<GameState> {
+        println!("Action: {:?}", action);
         let mut rng = thread_rng();
         match action {
             GameAction::DealCards => {

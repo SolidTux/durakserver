@@ -1,6 +1,7 @@
 use std::u64;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt::Debug;
 use std::io;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
@@ -40,7 +41,7 @@ pub struct DurakError {
     message: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DurakErrorType {
     IOError,
     ChannelSendError,
@@ -50,7 +51,7 @@ pub enum DurakErrorType {
     Unimplemented,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Command<T: GameRules + Clone + Send> {
     Player(PlayerCommand),
     Table(TableCommand),
@@ -58,7 +59,7 @@ pub enum Command<T: GameRules + Clone + Send> {
     Answer(Answer<T>),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Answer<T: GameRules + Clone + Send> {
     PlayerList(HashMap<ClientHash, Player>),
     PlayerState(ClientHash, Player),
@@ -102,7 +103,7 @@ pub enum GameAction {
     PutCard(Card),
 }
 
-impl<T: GameRules + Clone + Send + 'static> Server<T> {
+impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
     pub fn new<S: ToSocketAddrs>(address: S, rules: T) -> Result<Server<T>> {
         Ok(Server {
             listener: TcpListener::bind(address)?,
@@ -235,6 +236,7 @@ impl<T: GameRules + Clone + Send + 'static> Server<T> {
             for (clienthash, channel) in &self.channels {
                 match channel.try_recv() {
                     Ok(command) => {
+                        println!("{:016X}: {:?}", clienthash, command);
                         match self.room.handle_command(clienthash, command) {
                             Some((target, answer)) => {
                                 match target {
@@ -439,6 +441,10 @@ impl<A, B> IntoIterator for DuplexChannel<A, B> {
 
 impl ToString for DurakError {
     fn to_string(&self) -> String {
-        self.message.clone()
+        if self.error_type == DurakErrorType::Unimplemented {
+            "Unimplemented feature.".into()
+        } else {
+            self.message.clone()
+        }
     }
 }
