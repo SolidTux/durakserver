@@ -5,6 +5,8 @@ import socket
 import random
 import threading
 import time
+import traceback
+import sys
 
 
 class PlayerThread (threading.Thread):
@@ -13,68 +15,81 @@ class PlayerThread (threading.Thread):
         self.name = name
         self.num = num
 
-    def run(self):
-        s = socket.socket()
-        s.connect(('localhost', 2342))
+    def send(self, msg, print_all=False, hide_err=False):
         buffer_size = 4096
+        try:
+            self.socket.recv(buffer_size)
+        except socket.timeout:
+            pass
+        self.socket.send((msg + '\n').encode())
+        try:
+            answer = self.socket.recv(buffer_size).decode()
+            if print_all or (answer.startswith('ERROR') and not hide_err):
+                print(answer, end='')
+            if answer.startswith('ERROR'):
+                return None
+            return answer
+        except socket.timeout:
+            return None
+
+    def run(self):
+        self.socket = socket.socket()
+        self.socket.connect(('localhost', 2342))
+        self.socket.settimeout(0.1)
 
         try:
             time.sleep(self.num)
-            s.send(('player name %s\n' % self.name).encode())
-            s.send(b'table list\n')
-            data = s.recv(buffer_size).decode()
-            print(data, end='')
+            self.send('player name %s' % self.name)
+            data = self.send('table list')
             match = re.search('\t([^\s]+) ', data)
             if match is None:
-                s.send(b'table new Kuchen\n')
-                s.send(b'table list\n')
-                data = s.recv(buffer_size).decode()
+                self.send('table new Kuchen')
+                data = self.send('table list')
                 match = re.search('\t([^\s]+) ', data)
             tablehash = match.group(1)
-            s.send(('table join %s\n' % tablehash).encode())
+            self.send('table join %s' % tablehash)
             if self.num == 0:
                 time.sleep(3)
                 print('')
                 print('------STARTER------')
-                s.send(b'player state\n')
-                print(s.recv(buffer_size).decode(), end='')
-                s.send(b'game start\n')
-                print(s.recv(buffer_size).decode(), end='')
-                s.send(b'game state\n')
-                data = s.recv(buffer_size).decode()
-                card = re.match('cards (..)', data).group(1)
-                s.send(('game put %s\n' % card).encode())
-                print(s.recv(buffer_size).decode(), end='')
-                s.send(('game put %s 0\n' % card).encode())
-                print(s.recv(buffer_size).decode(), end='')
-                s.send(b'game state\n')
-                print(s.recv(buffer_size).decode(), end='')
-                time.sleep(10)
-                s.send(b'quit\n')
+                self.send('game start')
+                self.send('player state', print_all=True)
+                self.send('game state', print_all=True)
+                for i in range(5):
+                    data = None
+                    while data is None:
+                        data = self.send('game state')
+                    card = re.match('cards (..)', data).group(1)
+                    self.send('game put %s' % card, hide_err=True)
+                    for j in range(5):
+                        self.send('game put %s %d' % (card, j), hide_err=True)
+                self.send('game state', print_all=True)
+                time.sleep(15)
+                self.send('quit')
             else:
                 time.sleep(6)
-                time.sleep(self.num)
+                time.sleep(2*self.num)
                 print('')
                 print('---------%1d---------' % self.num)
-                s.send(b'player state\n')
-                print(s.recv(buffer_size).decode(), end='')
-                s.send(b'game state\n')
-                data = s.recv(buffer_size).decode()
-                match = re.match('cards (..)', data)
-                if match is None:
-                    data = s.recv(buffer_size).decode()
+                self.send('player state', print_all=True)
+                self.send('game state', print_all=True)
+                for i in range(5):
+                    data = None
+                    while data is None:
+                        data = self.send('game state')
                     match = re.match('cards (..)', data)
-                card = match.group(1)
-                s.send(('game put %s\n' % card).encode())
-                print(s.recv(buffer_size).decode(), end='')
-                s.send(('game put %s 0\n' % card).encode())
-                print(s.recv(buffer_size).decode(), end='')
-                s.send(b'game state\n')
-                print(s.recv(buffer_size).decode(), end='')
-        except Exception as e:
-            print(e)
+                    if match is None:
+                        data = self.send('game state')
+                        match = re.match('cards (..)', data)
+                    card = match.group(1)
+                    self.send('game put %s' % card, hide_err=True)
+                    for j in range(5):
+                        self.send('game put %s %d' % (card, j), hide_err=True)
+                self.send('game state', print_all=True)
+        except Exception:
+            traceback.print_exc(file=sys.stderr)
         finally:
-            s.close()
+            self.socket.close()
 
 
 threads = []
