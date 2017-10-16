@@ -75,12 +75,17 @@ impl GameRules for DefaultRules {
                 state.target_player = p.get(0).map(|x| x.clone()); //TODO
             }
             GameAction::PutCard(card, stack_ind) => {
+                let target = match state.target_player {
+                    Some(player) => player,
+                    None => return Err(durak_error!(GameError, "No target player.")),
+                };
+                let target_num_cards = match state.player_cards.clone().get(&target) {
+                    Some(cards) => cards.len(),
+                    None => return Err(durak_error!(GameError, "Target player cards not found.")),
+                };
                 match state.player_cards.get_mut(origin) {
                     Some(cards) => {
-                        let is_target = match state.target_player {
-                            Some(player) => player == *origin,
-                            None => return Err(durak_error!(GameError, "No target player.")),
-                        };
+                        let is_target = target == *origin;
                         match stack_ind {
                             Some(ind) => {
                                 if !is_target {
@@ -138,6 +143,12 @@ impl GameRules for DefaultRules {
                                     return Err(durak_error!(
                                         GameError,
                                         "Defending player cannot start a new stack."
+                                    ));
+                                }
+                                if state.table_stacks.len() >= target_num_cards {
+                                    return Err(durak_error!(
+                                        GameError,
+                                        "No more stacks than cards allowed"
                                     ));
                                 }
                                 if !cards.remove(&card) {
