@@ -9,7 +9,8 @@ macro_rules! durak_error {
 }
 
 pub trait GameRules {
-    fn apply(&self, &mut GameState, &Vec<ClientHash>, GameAction) -> Result<GameState>;
+    fn apply(&self, &ClientHash, &mut GameState, &Vec<ClientHash>, GameAction)
+        -> Result<GameState>;
 }
 
 #[derive(Clone, Debug)]
@@ -26,6 +27,7 @@ impl DefaultRules {
 impl GameRules for DefaultRules {
     fn apply(
         &self,
+        origin: &ClientHash,
         state: &mut GameState,
         players: &Vec<ClientHash>,
         action: GameAction,
@@ -68,9 +70,35 @@ impl GameRules for DefaultRules {
                 }
                 state.card_stack = cards.clone();
                 state.trump = state.card_stack.last().map(|x| x.suite.clone());
+                state.target_player = players.get(0).map(|x| x.clone()); //TODO
                 Ok(state.clone())
             }
-            GameAction::PutCard(card) => Err(durak_error!(Unimplemented, "")),
+            GameAction::PutCard(card, stack_ind) => {
+                // TODO test if player is allowed to put card
+                match state.player_cards.get_mut(origin) {
+                    Some(cards) => {
+                        let is_target = match state.target_player {
+                            Some(player) => player == *origin,
+                            None => return Err(durak_error!(GameError, "No target player.")),
+                        };
+                        match stack_ind {
+                            Some(ind) => {
+                                match state.table_stacks.get(ind) {
+                                    Some(stack) => return Err(durak_error!(Unimplemented, "")),
+                                    None => return Err(durak_error!(GameError, "Stack not found.")),
+                                }
+                            }
+                            None => state.table_stacks.push((card.clone(), None)),
+                        }
+                        if cards.remove(&card) {
+                            Err(durak_error!(Unimplemented, ""))
+                        } else {
+                            Err(durak_error!(GameError, "Card not found."))
+                        }
+                    }
+                    None => Err(durak_error!(GameError, "Player not found.")),
+                }
+            }
         }
     }
 }

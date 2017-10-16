@@ -44,6 +44,7 @@ pub struct Table<T: GameRules + Clone + Send> {
 #[derive(Debug, Clone)]
 pub struct GameState {
     pub player_cards: HashMap<ClientHash, HashSet<Card>>,
+    pub table_stacks: Vec<(Card, Option<Card>)>,
     pub card_stack: Vec<Card>,
     pub trump: Option<Suite>,
     pub target_player: Option<ClientHash>,
@@ -242,6 +243,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                                 None => {
                                                     let mut state = GameState::new();
                                                     match table.rules.apply(
+                                                        client,
                                                         &mut state,
                                                         &table.players,
                                                         GameAction::DealCards,
@@ -291,6 +293,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
                                         match table.game_state {
                                             Some(ref mut state) => {
                                                 match table.rules.apply(
+                                                    client,
                                                     state,
                                                     &table.players,
                                                     action,
@@ -372,6 +375,7 @@ impl GameState {
     pub fn new() -> GameState {
         GameState {
             player_cards: HashMap::new(),
+            table_stacks: Vec::new(),
             card_stack: Vec::new(),
             trump: None,
             target_player: None,

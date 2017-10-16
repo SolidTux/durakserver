@@ -6,6 +6,7 @@ use std::io;
 use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::net::{TcpListener, ToSocketAddrs};
+use std::num;
 use std::result;
 use std::sync::mpsc;
 use std::thread;
@@ -100,7 +101,7 @@ pub enum GameCommand {
 #[derive(Debug, Clone)]
 pub enum GameAction {
     DealCards,
-    PutCard(Card),
+    PutCard(Card, Option<usize>),
 }
 
 impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
@@ -217,7 +218,27 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                                 ))
                                 .unwrap();
                             writer
-                                .write_fmt(format_args!("game {}\n", gamestate))
+                                .write_fmt(format_args!("trump {}\n", gamestate))
+                                .unwrap();
+                            writer
+                                .write_fmt(format_args!(
+                                    "table {}\n",
+                                    gamestate.table_stacks.iter().fold(String::new(), |acc,
+                                     &(ref x,
+                                       ref y)| {
+                                        if acc.len() == 0 {
+                                            match y {
+                                                &Some(ref c) => format!("{}/{}", x, c),
+                                                &None => format!("{}/--", x),
+                                            }
+                                        } else {
+                                            match y {
+                                                &Some(ref c) => format!("{} {}/{}", acc, x, c),
+                                                &None => format!("{} {}/--", acc, x),
+                                            }
+                                        }
+                                    })
+                                ))
                                 .unwrap();
                         }
                     }
@@ -285,6 +306,12 @@ impl From<io::Error> for DurakError {
 impl From<mpsc::TryRecvError> for DurakError {
     fn from(e: mpsc::TryRecvError) -> DurakError {
         DurakError::new(DurakErrorType::ChannelRecvError, e.description())
+    }
+}
+
+impl From<num::ParseIntError> for DurakError {
+    fn from(e: num::ParseIntError) -> DurakError {
+        DurakError::new(DurakErrorType::ParserError, e.description())
     }
 }
 
@@ -398,7 +425,15 @@ impl GameCommand {
             Some("state") => Ok(GameCommand::State),
             Some("put") => {
                 match parts.next() {
-                    Some(tail) => Ok(GameCommand::Action(GameAction::PutCard(tail.parse()?))),
+                    Some(tail) => {
+                        let card = tail.parse()?;
+                        match parts.next() {
+                            Some(tail) => Ok(GameCommand::Action(
+                                GameAction::PutCard(card, Some(tail.parse()?)),
+                            )),
+                            None => Ok(GameCommand::Action(GameAction::PutCard(card, None))),
+                        }
+                    }
                     None => Err(durak_error!(ParserError, "No card specified.")),
                 }
             }
