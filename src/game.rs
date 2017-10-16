@@ -139,6 +139,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
             Command::Table(tablecommand) => self.handle_table_command(client, tablecommand),
             Command::Game(gamecommand) => self.handle_game_command(client, gamecommand),
             Command::Answer(answer) => Some((AnswerTarget::Direct, answer)),
+            Command::Quit => unimplemented!(),
         }
     }
 

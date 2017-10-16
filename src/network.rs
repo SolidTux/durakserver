@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use std::io::{BufReader, BufWriter};
 use std::net::{TcpListener, ToSocketAddrs};
 use std::num;
+use std::process;
 use std::result;
 use std::sync::mpsc;
 use std::thread;
@@ -58,6 +59,7 @@ pub enum Command<T: GameRules + Clone + Send> {
     Table(TableCommand),
     Game(GameCommand),
     Answer(Answer<T>),
+    Quit,
 }
 
 #[derive(Clone, Debug)]
@@ -262,6 +264,7 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
             }
             for (clienthash, channel) in &self.channels {
                 match channel.try_recv() {
+                    Ok(Command::Quit) => process::exit(0),
                     Ok(command) => {
                         println!("{:016X}: {:?}", clienthash, command);
                         match self.room.handle_command(clienthash, command) {
@@ -334,6 +337,7 @@ impl<T: GameRules + Clone + Send> Command<T> {
         let mut parts = line.splitn(2, ' ');
 
         match parts.next() {
+            Some("quit") => Ok(Command::Quit),
             Some("player") => {
                 match parts.next() {
                     Some(tail) => Ok(Command::Player(PlayerCommand::parse(tail)?)),

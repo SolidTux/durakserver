@@ -49,6 +49,8 @@ class PlayerThread (threading.Thread):
                 print(s.recv(buffer_size).decode(), end='')
                 s.send(b'game state\n')
                 print(s.recv(buffer_size).decode(), end='')
+                time.sleep(10)
+                s.send(b'quit\n')
             else:
                 time.sleep(6)
                 time.sleep(self.num)
