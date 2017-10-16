@@ -70,4 +70,37 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn card_display() {
+        assert_eq!(
+            format!("{}", Card::new(CardValue::Number10, Suite::Hearts)),
+            "02"
+        );
+        assert_eq!(
+            format!("{}", Card::new(CardValue::Jack, Suite::Spades)),
+            "J3"
+        );
+    }
+
+    #[test]
+    fn suite_display() {
+        assert_eq!(format!("{}", Suite::Diamonds), "1");
+        assert_eq!(format!("{}", Suite::Hearts), "2");
+        assert_eq!(format!("{}", Suite::Spades), "3");
+        assert_eq!(format!("{}", Suite::Clubs), "4");
+    }
+
+    #[test]
+    fn card_value_display() {
+        assert_eq!(format!("{}", CardValue::Number6), "6");
+        assert_eq!(format!("{}", CardValue::Number7), "7");
+        assert_eq!(format!("{}", CardValue::Number8), "8");
+        assert_eq!(format!("{}", CardValue::Number9), "9");
+        assert_eq!(format!("{}", CardValue::Number10), "0");
+        assert_eq!(format!("{}", CardValue::Jack), "J");
+        assert_eq!(format!("{}", CardValue::Queen), "Q");
+        assert_eq!(format!("{}", CardValue::King), "K");
+        assert_eq!(format!("{}", CardValue::Ace), "A");
+    }
 }
