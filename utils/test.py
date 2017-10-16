@@ -94,7 +94,7 @@ class PlayerThread (threading.Thread):
 
 threads = []
 
-for (num, name) in enumerate(['Kekse', 'Kuchen', 'Quark']):
+for (num, name) in enumerate(['Kekse', 'Kuchen', 'Quark', 'Ente']):
     p = PlayerThread(name, num)
     p.start()
     threads.append(p)

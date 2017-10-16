@@ -48,6 +48,8 @@ pub struct GameState {
     pub card_stack: Vec<Card>,
     pub trump: Option<Suite>,
     pub target_player: Option<ClientHash>,
+    pub attack_player: Option<ClientHash>,
+    pub neighbor_player: Option<ClientHash>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -380,6 +382,8 @@ impl GameState {
             card_stack: Vec::new(),
             trump: None,
             target_player: None,
+            attack_player: None,
+            neighbor_player: None,
         }
     }
 }

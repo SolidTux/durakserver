@@ -32,7 +32,6 @@ impl GameRules for DefaultRules {
         players: &Vec<ClientHash>,
         action: GameAction,
     ) -> Result<GameState> {
-        println!("Action: {:?}", action);
         let mut rng = thread_rng();
         match action {
             GameAction::DealCards => {
@@ -70,14 +69,24 @@ impl GameRules for DefaultRules {
                 }
                 state.card_stack = cards.clone();
                 state.trump = state.card_stack.last().map(|x| x.suite.clone());
-                let mut p = players.clone();
-                rng.shuffle(p.as_mut_slice());
-                state.target_player = p.get(0).map(|x| x.clone()); //TODO
+
+                // TODO
+                state.target_player = players.get(0).cloned();
+                state.attack_player = players.get(players.len() - 1).cloned();
+                state.neighbor_player = players.get(1).cloned();
             }
             GameAction::PutCard(card, stack_ind) => {
                 let target = match state.target_player {
                     Some(player) => player,
                     None => return Err(durak_error!(GameError, "No target player.")),
+                };
+                let attack = match state.attack_player {
+                    Some(player) => player,
+                    None => return Err(durak_error!(GameError, "No attacking player.")),
+                };
+                let neighbor = match state.neighbor_player {
+                    Some(player) => player,
+                    None => return Err(durak_error!(GameError, "No attacking player.")),
                 };
                 let target_num_cards = match state.player_cards.clone().get(&target) {
                     Some(cards) => cards.len(),
@@ -85,10 +94,9 @@ impl GameRules for DefaultRules {
                 };
                 match state.player_cards.get_mut(origin) {
                     Some(cards) => {
-                        let is_target = target == *origin;
                         match stack_ind {
                             Some(ind) => {
-                                if !is_target {
+                                if !(target == *origin) {
                                     return Err(durak_error!(
                                         GameError,
                                         "Only target player can defend."
@@ -139,10 +147,17 @@ impl GameRules for DefaultRules {
                                 }
                             }
                             None => {
-                                if is_target {
+                                println!("{:016X} {:016X} {:016X}", origin, attack, neighbor);
+                                if (state.table_stacks.len() == 0) && !(attack == *origin) {
                                     return Err(durak_error!(
                                         GameError,
-                                        "Defending player cannot start a new stack."
+                                        "Only attacking player can start."
+                                    ));
+                                }
+                                if !((attack == *origin) || (neighbor == *origin)) {
+                                    return Err(durak_error!(
+                                        GameError,
+                                        "Only attacking player and neighbor can start a new stack."
                                     ));
                                 }
                                 if state.table_stacks.len() >= target_num_cards {

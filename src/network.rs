@@ -194,6 +194,7 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                             writer.write_fmt(format_args!("\n")).unwrap();
                         }
                         Answer::Error(error) => {
+                            println!("error {:?}", error);
                             writer
                                 .write_fmt(format_args!("ERROR {}\n", error.to_string()))
                                 .unwrap();
@@ -266,7 +267,6 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                 match channel.try_recv() {
                     Ok(Command::Quit) => process::exit(0),
                     Ok(command) => {
-                        println!("{:016X}: {:?}", clienthash, command);
                         match self.room.handle_command(clienthash, command) {
                             Some((target, answer)) => {
                                 match target {
