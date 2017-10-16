@@ -432,12 +432,20 @@ impl GameCommand {
             Some("put") => {
                 match parts.next() {
                     Some(tail) => {
-                        let card = tail.parse()?;
+                        let mut parts = tail.split(' ');
                         match parts.next() {
-                            Some(tail) => Ok(GameCommand::Action(
-                                GameAction::PutCard(card, Some(tail.parse()?)),
-                            )),
-                            None => Ok(GameCommand::Action(GameAction::PutCard(card, None))),
+                            Some(card) => {
+                                match parts.next() {
+                                    Some(tail) => Ok(GameCommand::Action(GameAction::PutCard(
+                                        card.parse()?,
+                                        Some(tail.parse()?),
+                                    ))),
+                                    None => Ok(GameCommand::Action(
+                                        GameAction::PutCard(card.parse()?, None),
+                                    )),
+                                }
+                            }
+                            None => Err(durak_error!(ParserError, "No card specified.")),
                         }
                     }
                     None => Err(durak_error!(ParserError, "No card specified.")),

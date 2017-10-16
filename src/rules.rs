@@ -75,7 +75,6 @@ impl GameRules for DefaultRules {
                 state.target_player = p.get(0).map(|x| x.clone()); //TODO
             }
             GameAction::PutCard(card, stack_ind) => {
-                // TODO test if player is allowed to put card
                 match state.player_cards.get_mut(origin) {
                     Some(cards) => {
                         let is_target = match state.target_player {
@@ -93,6 +92,31 @@ impl GameRules for DefaultRules {
                                 match state.table_stacks.get_mut(ind) {
                                     Some(stack) => {
                                         if let (a, None) = stack.clone() {
+                                            match state.trump {
+                                                Some(ref trump) => {
+                                                    match card.better_as(a.clone(), trump.clone()) {
+                                                        Some(false) => {
+                                                            return Err(durak_error!(
+                                                                GameError,
+                                                                "Defending is only possible with better card."
+                                                            ))
+                                                        }
+                                                        Some(true) => {}
+                                                        None => {
+                                                            return Err(durak_error!(
+                                                                GameError,
+                                                                "Defending is only possible with matching card."
+                                                            ))
+                                                        }
+                                                    }
+                                                }
+                                                None => {
+                                                    return Err(durak_error!(
+                                                        GameError,
+                                                        "No trump suite defined."
+                                                    ))
+                                                }
+                                            }
                                             if !cards.remove(&card) {
                                                 return Err(
                                                     durak_error!(GameError, "Card not found."),
@@ -115,6 +139,9 @@ impl GameRules for DefaultRules {
                                         GameError,
                                         "Defending player cannot start a new stack."
                                     ));
+                                }
+                                if !cards.remove(&card) {
+                                    return Err(durak_error!(GameError, "Card not found."));
                                 }
                                 state.table_stacks.push((card.clone(), None));
                             }
