@@ -62,7 +62,7 @@ pub struct Card {
     pub suite: Suite,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd)]
 pub enum CardValue {
     Number6,
     Number7,
@@ -392,6 +392,29 @@ impl fmt::Display for GameState {
                     Some(ref suite) => write!(f, "-{}", suite),
                     None => write!(f, "--"),
                 }
+            }
+        }
+    }
+}
+
+impl Card {
+    pub fn new(value: CardValue, suite: Suite) -> Card {
+        Card {
+            value: value,
+            suite: suite,
+        }
+    }
+
+    pub fn better_as(&self, c: Card, trump: Suite) -> Option<bool> {
+        if self.suite == c.suite {
+            Some(self.value > c.value)
+        } else {
+            if self.suite == trump {
+                Some(true)
+            } else if c.suite == trump {
+                Some(false)
+            } else {
+                None
             }
         }
     }

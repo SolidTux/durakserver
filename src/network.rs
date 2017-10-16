@@ -240,6 +240,12 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                                     })
                                 ))
                                 .unwrap();
+                            if let Some(p) = gamestate.target_player {
+                                writer
+                                    .write_fmt(format_args!("target {:016X}\n", p))
+                                    .unwrap();
+                            }
+
                         }
                     }
                     let _ = writer.flush();

@@ -70,8 +70,9 @@ impl GameRules for DefaultRules {
                 }
                 state.card_stack = cards.clone();
                 state.trump = state.card_stack.last().map(|x| x.suite.clone());
-                state.target_player = players.get(0).map(|x| x.clone()); //TODO
-                Ok(state.clone())
+                let mut p = players.clone();
+                rng.shuffle(p.as_mut_slice());
+                state.target_player = p.get(0).map(|x| x.clone()); //TODO
             }
             GameAction::PutCard(card, stack_ind) => {
                 // TODO test if player is allowed to put card
@@ -83,22 +84,46 @@ impl GameRules for DefaultRules {
                         };
                         match stack_ind {
                             Some(ind) => {
-                                match state.table_stacks.get(ind) {
-                                    Some(stack) => return Err(durak_error!(Unimplemented, "")),
+                                if !is_target {
+                                    return Err(durak_error!(
+                                        GameError,
+                                        "Only target player can defend."
+                                    ));
+                                }
+                                match state.table_stacks.get_mut(ind) {
+                                    Some(stack) => {
+                                        if let (a, None) = stack.clone() {
+                                            if !cards.remove(&card) {
+                                                return Err(
+                                                    durak_error!(GameError, "Card not found."),
+                                                );
+                                            }
+                                            *stack = (a, Some(card.clone()));
+                                        } else {
+                                            return Err(durak_error!(
+                                                GameError,
+                                                "Card already defended."
+                                            ));
+                                        }
+                                    }
                                     None => return Err(durak_error!(GameError, "Stack not found.")),
                                 }
                             }
-                            None => state.table_stacks.push((card.clone(), None)),
-                        }
-                        if cards.remove(&card) {
-                            Err(durak_error!(Unimplemented, ""))
-                        } else {
-                            Err(durak_error!(GameError, "Card not found."))
+                            None => {
+                                if is_target {
+                                    return Err(durak_error!(
+                                        GameError,
+                                        "Defending player cannot start a new stack."
+                                    ));
+                                }
+                                state.table_stacks.push((card.clone(), None));
+                            }
                         }
                     }
-                    None => Err(durak_error!(GameError, "Player not found.")),
+                    None => return Err(durak_error!(GameError, "Player not found.")),
                 }
             }
         }
+        Ok(state.clone())
     }
 }
