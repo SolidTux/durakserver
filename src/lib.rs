@@ -48,6 +48,13 @@ mod tests {
                 Suite::Diamonds,
             )
         );
+        assert_eq!(
+            Some(false),
+            Card::new(CardValue::Number10, Suite::Diamonds).better_as(
+                Card::new(CardValue::King, Suite::Diamonds),
+                Suite::Diamonds,
+            )
+        );
     }
 
     #[test]

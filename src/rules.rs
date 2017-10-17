@@ -47,6 +47,7 @@ impl GameRules for DefaultRules {
                         CardValue::Number10,
                         CardValue::Jack,
                         CardValue::Queen,
+                        CardValue::King,
                         CardValue::Ace,
                     ].into_iter()
                     {
@@ -159,6 +160,24 @@ impl GameRules for DefaultRules {
                                         GameError,
                                         "Only attacking player and neighbor can start a new stack."
                                     ));
+                                }
+                                let stacks = state.table_stacks.clone();
+                                if stacks.len() > 0 {
+                                    if stacks.iter().fold(true, |mut acc, &(ref a, ref b)| {
+                                        acc = acc && !(card.value == a.value);
+                                        if let &Some(ref x) = b {
+                                            acc = acc && !(card.value == x.value);
+                                        }
+                                        acc
+                                    })
+                                    {
+                                        println!("NOT FOUND {:?} {:?}", card, stacks);
+                                        return Err(durak_error!(
+                                            GameError,
+                                            "Attacking is only possible with existing card values."
+                                        ));
+                                    }
+                                    println!("FOUND {:?} {:?}", card, stacks);
                                 }
                                 if state
                                     .table_stacks

@@ -157,21 +157,21 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                         Answer::PlayerList(list) => {
                             for (hash, player) in list {
                                 writer
-                                    .write_fmt(format_args!("\t{:016X} {}\n", hash, player.name))
+                                    .write_fmt(format_args!("{:016X} {}\n", hash, player.name))
                                     .unwrap();
                             }
                         }
                         Answer::PlayerState(hash, player) => {
                             writer
-                                .write_fmt(format_args!("\thash  {:016X}\n", hash))
+                                .write_fmt(format_args!("hash  {:016X}\n", hash))
                                 .unwrap();
                             writer
-                                .write_fmt(format_args!("\tname  {}\n", player.name))
+                                .write_fmt(format_args!("name  {}\n", player.name))
                                 .unwrap();
                             match player.table {
                                 Some(table) => {
                                     writer
-                                        .write_fmt(format_args!("\ttable {:016X}\n", table))
+                                        .write_fmt(format_args!("table {:016X}\n", table))
                                         .unwrap()
                                 }
                                 None => {}
@@ -181,7 +181,7 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                             for (tablehash, table) in list {
                                 writer
                                     .write_fmt(format_args!(
-                                        "\t{:016X} {} {} {} {} {}\n",
+                                        "{:016X} {} {} {} {} {}\n",
                                         tablehash,
                                         table.players.len(),
                                         table.min_players,
