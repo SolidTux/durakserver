@@ -71,9 +71,9 @@ impl GameRules for DefaultRules {
                 state.trump = state.card_stack.last().map(|x| x.suite.clone());
 
                 // TODO
-                state.target_player = players.get(0).cloned();
-                state.attack_player = players.get(players.len() - 1).cloned();
-                state.neighbor_player = players.get(1).cloned();
+                state.target_player = players.get(1).cloned();
+                state.attack_player = players.get(0).cloned();
+                state.neighbor_player = players.get(2).cloned();
             }
             GameAction::PutCard(card, stack_ind) => {
                 let target = match state.target_player {
@@ -160,7 +160,13 @@ impl GameRules for DefaultRules {
                                         "Only attacking player and neighbor can start a new stack."
                                     ));
                                 }
-                                if state.table_stacks.len() >= target_num_cards {
+                                if state
+                                    .table_stacks
+                                    .iter()
+                                    .filter(|&&(_, ref b)| b.is_none())
+                                    .count() >=
+                                    target_num_cards
+                                {
                                     return Err(durak_error!(
                                         GameError,
                                         "No more stacks than cards allowed"
