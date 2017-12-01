@@ -17,7 +17,7 @@ macro_rules! durak_error {
 
 pub type TableHash = u64;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Player {
     pub name: String,
     pub cards: Vec<Card>,
@@ -41,7 +41,7 @@ pub struct Table<T: GameRules + Clone + Send> {
     rules: T,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GameState {
     pub player_cards: HashMap<ClientHash, HashSet<Card>>,
     pub table_stacks: Vec<(Card, Option<Card>)>,
@@ -97,9 +97,9 @@ impl Player {
 
 impl fmt::Display for TableState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &TableState::Idle => write!(f, "Idle"),
-            &TableState::Game => write!(f, "Game"),
+        match *self {
+            TableState::Idle => write!(f, "Idle"),
+            TableState::Game => write!(f, "Game"),
         }
     }
 }
@@ -169,7 +169,7 @@ impl<T: GameRules + Clone + Send> Room<T> {
                             (table.players.len() < table.max_players)
                         {
                             if let Some(player) = self.players.get_mut(client) {
-                                if let None = player.table {
+                                if player.table.is_none() {
                                     player.table = Some(tablehash);
                                     table.players.push(*client);
                                     None
@@ -450,11 +450,11 @@ impl fmt::Display for Suite {
 
 impl fmt::Debug for Suite {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Suite::Hearts => write!(f, "♥"),
-            &Suite::Diamonds => write!(f, "♦"),
-            &Suite::Clubs => write!(f, "♣"),
-            &Suite::Spades => write!(f, "♠"),
+        match *self {
+            Suite::Hearts => write!(f, "♥"),
+            Suite::Diamonds => write!(f, "♦"),
+            Suite::Clubs => write!(f, "♣"),
+            Suite::Spades => write!(f, "♠"),
         }
     }
 }
@@ -467,16 +467,16 @@ impl fmt::Display for CardValue {
 
 impl fmt::Debug for CardValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &CardValue::Number6 => write!(f, "6"),
-            &CardValue::Number7 => write!(f, "7"),
-            &CardValue::Number8 => write!(f, "8"),
-            &CardValue::Number9 => write!(f, "9"),
-            &CardValue::Number10 => write!(f, "0"),
-            &CardValue::Jack => write!(f, "J"),
-            &CardValue::Queen => write!(f, "Q"),
-            &CardValue::King => write!(f, "K"),
-            &CardValue::Ace => write!(f, "A"),
+        match *self {
+            CardValue::Number6 => write!(f, "6"),
+            CardValue::Number7 => write!(f, "7"),
+            CardValue::Number8 => write!(f, "8"),
+            CardValue::Number9 => write!(f, "9"),
+            CardValue::Number10 => write!(f, "0"),
+            CardValue::Jack => write!(f, "J"),
+            CardValue::Queen => write!(f, "Q"),
+            CardValue::King => write!(f, "K"),
+            CardValue::Ace => write!(f, "A"),
         }
     }
 }

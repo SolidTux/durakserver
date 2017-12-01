@@ -9,11 +9,10 @@ macro_rules! durak_error {
 }
 
 pub trait GameRules {
-    fn apply(&self, &ClientHash, &mut GameState, &Vec<ClientHash>, GameAction)
-        -> Result<GameState>;
+    fn apply(&self, &ClientHash, &mut GameState, &[ClientHash], GameAction) -> Result<GameState>;
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct DefaultRules {
     cards_per_player: usize,
 }
@@ -29,17 +28,15 @@ impl GameRules for DefaultRules {
         &self,
         origin: &ClientHash,
         state: &mut GameState,
-        players: &Vec<ClientHash>,
+        players: &[ClientHash],
         action: GameAction,
     ) -> Result<GameState> {
         let mut rng = thread_rng();
         match action {
             GameAction::DealCards => {
                 let mut cards = Vec::new();
-                for suite in [Suite::Hearts, Suite::Diamonds, Suite::Clubs, Suite::Spades]
-                    .into_iter()
-                {
-                    for value in [
+                for suite in &[Suite::Hearts, Suite::Diamonds, Suite::Clubs, Suite::Spades] {
+                    for value in &[
                         CardValue::Number6,
                         CardValue::Number7,
                         CardValue::Number8,
@@ -49,7 +46,7 @@ impl GameRules for DefaultRules {
                         CardValue::Queen,
                         CardValue::King,
                         CardValue::Ace,
-                    ].into_iter()
+                    ]
                     {
                         cards.push(Card {
                             suite: suite.clone(),
@@ -149,7 +146,7 @@ impl GameRules for DefaultRules {
                             }
                             None => {
                                 println!("{:016X} {:016X} {:016X}", origin, attack, neighbor);
-                                if (state.table_stacks.len() == 0) && !(attack == *origin) {
+                                if state.table_stacks.is_empty() && !(attack == *origin) {
                                     return Err(durak_error!(
                                         GameError,
                                         "Only attacking player can start."
@@ -162,10 +159,10 @@ impl GameRules for DefaultRules {
                                     ));
                                 }
                                 let stacks = state.table_stacks.clone();
-                                if stacks.len() > 0 {
+                                if !stacks.is_empty() {
                                     if stacks.iter().fold(true, |mut acc, &(ref a, ref b)| {
                                         acc = acc && !(card.value == a.value);
-                                        if let &Some(ref x) = b {
+                                        if let Some(ref x) = *b {
                                             acc = acc && !(card.value == x.value);
                                         }
                                         acc

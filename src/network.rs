@@ -168,13 +168,10 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                             writer
                                 .write_fmt(format_args!("name  {}\n", player.name))
                                 .unwrap();
-                            match player.table {
-                                Some(table) => {
-                                    writer
-                                        .write_fmt(format_args!("table {:016X}\n", table))
-                                        .unwrap()
-                                }
-                                None => {}
+                            if let Some(table) = player.table {
+                                writer
+                                    .write_fmt(format_args!("table {:016X}\n", table))
+                                    .unwrap();
                             }
                         }
                         Answer::TableList(list) => {
@@ -208,10 +205,10 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                             writer
                                 .write_fmt(format_args!(
                                     "cards {}\n",
-                                    gamestate.player_cards.get(&id).unwrap().iter().fold(
+                                    gamestate.player_cards[&id].iter().fold(
                                         String::new(),
                                         |acc, x| {
-                                            if acc.len() == 0 {
+                                            if acc.is_empty() {
                                                 format!("{}", x)
                                             } else {
                                                 format!("{} {}", acc, x)
@@ -229,15 +226,15 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
                                     gamestate.table_stacks.iter().fold(String::new(), |acc,
                                      &(ref x,
                                        ref y)| {
-                                        if acc.len() == 0 {
-                                            match y {
-                                                &Some(ref c) => format!("{}/{}", x, c),
-                                                &None => format!("{}/--", x),
+                                        if acc.is_empty() {
+                                            match *y {
+                                                Some(ref c) => format!("{}/{}", x, c),
+                                                None => format!("{}/--", x),
                                             }
                                         } else {
-                                            match y {
-                                                &Some(ref c) => format!("{} {}/{}", acc, x, c),
-                                                &None => format!("{} {}/--", acc, x),
+                                            match *y {
+                                                Some(ref c) => format!("{} {}/{}", acc, x, c),
+                                                None => format!("{} {}/--", acc, x),
                                             }
                                         }
                                     })
@@ -257,36 +254,30 @@ impl<T: GameRules + Debug + Clone + Send + 'static> Server<T> {
         });
 
         loop {
-            match rx.try_recv() {
-                Ok((clienthash, channel)) => {
-                    self.channels.insert(clienthash, channel);
-                }
-                Err(_) => {}
+            if let Ok((clienthash, channel)) = rx.try_recv() {
+                self.channels.insert(clienthash, channel);
             }
             for (clienthash, channel) in &self.channels {
                 match channel.try_recv() {
                     Ok(Command::Quit) => process::exit(0),
                     Ok(command) => {
-                        match self.room.handle_command(clienthash, command) {
-                            Some((target, answer)) => {
-                                match target {
-                                    AnswerTarget::Direct => {
-                                        match self.channels.get(&clienthash) {
-                                            Some(ch) => ch.send(answer.clone()).unwrap(),
-                                            None => {}
-                                        }
+                        if let Some((target, answer)) =
+                            self.room.handle_command(clienthash, command)
+                        {
+                            match target {
+                                AnswerTarget::Direct => {
+                                    if let Some(ch) = self.channels.get(clienthash) {
+                                        ch.send(answer.clone()).unwrap();
                                     }
-                                    AnswerTarget::List(targets) => {
-                                        for target in targets {
-                                            match self.channels.get(&target) {
-                                                Some(ch) => ch.send(answer.clone()).unwrap(),
-                                                None => {}
-                                            }
+                                }
+                                AnswerTarget::List(targets) => {
+                                    for target in targets {
+                                        if let Some(ch) = self.channels.get(&target) {
+                                            ch.send(answer.clone()).unwrap();
                                         }
                                     }
                                 }
                             }
-                            None => {}
                         }
                     }
                     Err(_) => {}
